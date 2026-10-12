@@ -1,0 +1,117 @@
+standard: '1.0'
+commit: 5c97c3973495fcafeab8a7e079889fc263de6e2b
+date: '2026-10-12'
+performed_by: agent
+scope:
+- cmd/
+- internal/
+- web/src/
+commands:
+- go vet ./internal/config ./internal/db ./internal/github ./internal/llm ./internal/engine/standards
+  ./internal/api ./cmd/ossalot
+- node --check web/src/model.mjs
+tools:
+  go: 1.23.2
+  node: 18.19.1
+  python: 3.12.3
+evidence: []
+exceptions:
+  count: 0
+  lines_covered: 0
+open_emergencies: []
+clauses:
+  O1.1: pass
+  O1.2: not_applicable
+  O1.3: pass
+  O1.4: pass
+  O1.5: not_applicable
+  O1.6: pass
+  O1.7: not_applicable
+  O1.8: pass
+  O2.1: not_applicable
+  O2.2: not_applicable
+  O2.3: not_applicable
+  O2.4: not_applicable
+  O2.5: not_applicable
+  O2.6: not_applicable
+  O2.7: pass
+  O2.8: pass
+  O3.1: pass
+  O3.2: not_applicable
+  O3.3: not_applicable
+  O3.4: not_applicable
+  O3.5: not_applicable
+  O3.6: not_applicable
+  O3.7: not_applicable
+  O3.8: pass
+  O4.1: pass
+  O4.2: pass
+  O4.3: pass
+  O4.4: pass
+  O4.5: pass
+  O4.6: pass
+  O4.7: pass
+  O5.1: pass
+  O5.2: pass
+  O5.3: pass
+  O5.4: pass
+  O5.5: pass
+  O6.1: pass
+  O6.2: pass
+  O6.3: pass
+  O7.1: pass
+  O7.2: pass
+  O7.3: pass
+  O7.4: pass
+  O7.5: pass
+  O7.6: not_applicable
+  D1.1: pass
+  D1.2: pass
+  D1.3: pass
+  D1.4: pass
+  D1.5: pass
+  D2.1: pass
+  D2.2: pass
+  D2.3: pass
+  D2.4: pass
+  D2.5: pass
+  D3.1: pass
+  D3.2: pass
+  D3.3: pass
+  D3.4: pass
+  D3.5: pass
+  D4.1: pass
+  D4.2: pass
+  D4.3: pass
+  D4.4: pass
+  D5.1: pass
+  D5.2: pass
+  D5.3: pass
+  D5.4: pass
+  D5.5: pass
+  D5.6: pass
+  D5.7: pass
+  D6.1: pass
+  D6.2: pass
+  D6.3: pass
+  D6.4: pass
+  D7.1: pass
+  D7.2: pass
+  D7.3: pass
+  D8.1: pass
+  D8.2: pass
+  D8.3: pass
+  D8.4: pass
+  D9.1: pass
+  D9.2: pass
+  D9.3: pass
+  X1.1: pass
+  X1.2: pass
+  X1.3: pass
+  X1.4: pass
+  X1.5: pass
+  X1.6: pass
+  X1.7: pass
+  X1.8: pass
+findings: []
+result: pass
