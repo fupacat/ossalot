@@ -6,6 +6,8 @@ scope:
   - web/src/
 out_of_scope:
   - IMPLEMENTATION_PLAN.md
+  - go.mod
+  - scripts/
   - web/dist/
 documents:
   decisions: docs/mcswe/decisions.md
@@ -15,11 +17,11 @@ documents:
   trace_matrix: docs/mcswe/trace-matrix.md
   audits: docs/mcswe/audits/
 evidence:
-  test_command: "gotestsum --junitfile reports/junit.xml ./... && npm --prefix web run test:junit"
+  test_command: "python3 scripts/run_evidence.py test"
   test_report: "reports/junit.xml"
-  coverage_command: "go test -coverprofile=reports/coverage.out -covermode=count ./... && gcov2lcov -infile=reports/coverage.out -outfile=reports/lcov.info && npm --prefix web run test:coverage"
+  coverage_command: "python3 scripts/run_evidence.py coverage"
   coverage_report: "reports/lcov.info"
-  per_requirement_command: "gotestsum --junitfile reports/junit.xml -- -coverprofile=reports/coverage.out -run {tests} ./..."
+  per_requirement_command: "python3 scripts/run_evidence.py per-req {tests}"
 safety_critical: []         # Resolved in ADR-002: no safety-critical components
 generators: []
 audit_schedule: before each release
