@@ -120,7 +120,7 @@ def scan_anchors(scope_dirs):
                             pkg_dir = Path(rel).parent.as_posix()
                             test_id = f"{rel}::github.com/eric/ossalot/{pkg_dir}::{tm_go.group(1)}"
                         elif tm_js:
-                            test_id = f"{rel}::{tm_js.group(1)}"
+                            test_id = f"{rel}::{rel}::{tm_js.group(1)}"
                         if test_id:
                             for rid in req_ids:
                                 tests_by_req.setdefault(rid, []).append(test_id)

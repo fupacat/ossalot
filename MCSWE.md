@@ -5,8 +5,10 @@ scope:
   - internal/
   - web/src/
 out_of_scope:
+  - .gitignore
   - IMPLEMENTATION_PLAN.md
   - go.mod
+  - reports/
   - scripts/
   - web/dist/
 documents:

@@ -12,5 +12,19 @@ type EnvLookupFunc func(key string) string
 
 // TRACEABILITY_MAPPING: REQ-001
 func LoadFromEnv(lookup EnvLookupFunc) Config {
-	panic("stub: REQ-001 not yet implemented")
+	cfg := Config{
+		Addr:          "127.0.0.1:8080",
+		DBPath:        "ossalot.db",
+		WorkspaceSlug: "default",
+	}
+	if v := lookup("OSSALOT_ADDR"); v != "" {
+		cfg.Addr = v
+	}
+	if v := lookup("OSSALOT_DB_PATH"); v != "" {
+		cfg.DBPath = v
+	}
+	if v := lookup("OSSALOT_WORKSPACE"); v != "" {
+		cfg.WorkspaceSlug = v
+	}
+	return cfg
 }

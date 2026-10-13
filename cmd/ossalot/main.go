@@ -1,13 +1,50 @@
 package main
 
-import "github.com/eric/ossalot/internal/config"
+import (
+	"flag"
+	"io"
+	"net/http"
+	"os"
+
+	"github.com/eric/ossalot/internal/api"
+	"github.com/eric/ossalot/internal/config"
+	"github.com/eric/ossalot/internal/db"
+	"github.com/eric/ossalot/internal/github"
+	"github.com/eric/ossalot/internal/llm"
+)
+
+// TRACEABILITY_MAPPING: REQ-012
+var (
+	exitFunc   = os.Exit
+	listenFunc = http.ListenAndServe
+)
 
 // TRACEABILITY_MAPPING: REQ-012
 func Run(args []string, envLookup config.EnvLookupFunc) int {
-	panic("stub: REQ-012 not yet implemented")
+	cfg := config.LoadFromEnv(envLookup)
+	fs := flag.NewFlagSet("ossalot", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	addr := fs.String("addr", cfg.Addr, "HTTP listen address")
+	dbPath := fs.String("db", cfg.DBPath, "Database file path")
+	checkOnly := fs.Bool("check", false, "Initialize store and exit 0")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	store, err := db.OpenStore(*dbPath)
+	if err != nil {
+		return 2
+	}
+	srv := api.NewServer(store, github.NewClient("", "", nil), llm.NewClient("", nil))
+	if *checkOnly {
+		return 0
+	}
+	if err := listenFunc(*addr, srv); err != nil {
+		return 2
+	}
+	return 0
 }
 
 // TRACEABILITY_MAPPING: REQ-012
 func main() {
-	panic("stub: REQ-012 not yet implemented")
+	exitFunc(Run(os.Args[1:], os.Getenv))
 }

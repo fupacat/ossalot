@@ -1,0 +1,168 @@
+package db
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+// TRACEABILITY_MAPPING: REQ-002
+func TestOpenStoreAndDefaultWorkspace(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "ossalot.db")
+
+	store1, err := OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("OpenStore initial failed: %v", err)
+	}
+	ws := store1.GetDefaultWorkspace()
+	if ws.Slug != "default" || ws.Mode != "personal" {
+		t.Fatalf("unexpected workspace: %+v", ws)
+	}
+
+	// Re-open existing store to verify idempotent reload
+	store2, err := OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("OpenStore reopen failed: %v", err)
+	}
+	ws2 := store2.GetDefaultWorkspace()
+	if ws2.ID != ws.ID || ws2.Slug != "default" {
+		t.Fatalf("reopened workspace mismatch: %+v", ws2)
+	}
+
+	// Corrupt file check
+	corruptPath := filepath.Join(tmpDir, "corrupt.db")
+	_ = os.WriteFile(corruptPath, []byte("{bad-json"), 0o600)
+	if _, err := OpenStore(corruptPath); err == nil {
+		t.Fatalf("expected error on corrupt db file")
+	}
+
+	// Unwritable path check (directory path instead of file)
+	if _, err := OpenStore(tmpDir); err == nil {
+		t.Fatalf("expected error when opening directory as db file")
+	}
+}
+
+// TRACEABILITY_MAPPING: REQ-003
+func TestWorkspaceSettingsMasking(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "settings.db")
+	store, err := OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	// Initially empty secrets remain empty when redacted
+	initial := store.GetSettingsRedacted()
+	if initial.GitHubToken != "" || initial.LLMAPIKey != "" {
+		t.Fatalf("expected empty initial secrets, got %+v", initial)
+	}
+
+	err = store.SaveSettings(WorkspaceSettings{
+		GitHubToken:    "ghp_secret123",
+		LLMProvider:    "openai",
+		LLMAPIKey:      "sk-secret456",
+		LLMFastModel:   "gpt-4o-mini",
+		LLMStrongModel: "gpt-4o",
+	})
+	if err != nil {
+		t.Fatalf("SaveSettings failed: %v", err)
+	}
+
+	redacted := store.GetSettingsRedacted()
+	if redacted.GitHubToken != "***" || redacted.LLMAPIKey != "***" {
+		t.Fatalf("expected masked secrets, got %+v", redacted)
+	}
+
+	raw := store.GetSettingsRaw()
+	if raw.GitHubToken != "ghp_secret123" || raw.LLMAPIKey != "sk-secret456" {
+		t.Fatalf("expected raw secrets, got %+v", raw)
+	}
+
+	// Saving with "***" preserves existing secrets
+	err = store.SaveSettings(WorkspaceSettings{
+		GitHubToken:  "***",
+		LLMProvider:  "anthropic",
+		LLMAPIKey:    "***",
+		LLMFastModel: "claude-3-5-haiku",
+	})
+	if err != nil {
+		t.Fatalf("SaveSettings masked update failed: %v", err)
+	}
+	rawAfter := store.GetSettingsRaw()
+	if rawAfter.GitHubToken != "ghp_secret123" || rawAfter.LLMAPIKey != "sk-secret456" || rawAfter.LLMProvider != "anthropic" {
+		t.Fatalf("secrets were not preserved on masked save: %+v", rawAfter)
+	}
+}
+
+// TRACEABILITY_MAPPING: REQ-004
+func TestRepositoryAndAuditLifecycle(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "repos.db")
+	store, err := OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	saved, err := store.UpsertRepository(Repository{
+		Owner:           "octocat",
+		Name:            "hello-world",
+		FullName:        "octocat/hello-world",
+		HTMLURL:         "https://github.com/octocat/hello-world",
+		PrimaryLanguage: "Go",
+		IsOwned:         true,
+	})
+	if err != nil || saved.ID == "" {
+		t.Fatalf("UpsertRepository insert failed: %v, %+v", err, saved)
+	}
+
+	audit := AuditRecord{
+		ID:             "audit-1",
+		OverallScore:   85,
+		CategoryScores: map[string]int{"community_files": 25, "documentation_quality": 20, "technical_hygiene": 20, "security_openssf": 20},
+		Checks: []CheckItemRecord{
+			{CheckKey: "license_valid", Category: "community_files", Status: "pass", Score: 5, Weight: 5},
+		},
+	}
+	if err := store.SaveAudit(saved.ID, audit); err != nil {
+		t.Fatalf("SaveAudit failed: %v", err)
+	}
+	if err := store.SaveAudit("nonexistent-id", audit); err == nil {
+		t.Fatalf("expected error saving audit for nonexistent repo")
+	}
+
+	// Upsert existing repo by FullName preserves LatestAudit when nil
+	updated, err := store.UpsertRepository(Repository{
+		Owner:           "octocat",
+		Name:            "hello-world",
+		FullName:        "octocat/hello-world",
+		Description:     "Updated description",
+		PrimaryLanguage: "Go",
+		IsOwned:         true,
+		StandardsScore:  85,
+	})
+	if err != nil || updated.ID != saved.ID || updated.LatestAudit == nil || updated.LatestAudit.OverallScore != 85 {
+		t.Fatalf("UpsertRepository update failed to preserve audit: %+v, err=%v", updated, err)
+	}
+
+	list := store.ListRepositories()
+	if len(list) != 1 || list[0].Description != "Updated description" {
+		t.Fatalf("unexpected repository list: %+v", list)
+	}
+
+	got, ok := store.GetRepository(saved.ID)
+	if !ok || got.FullName != "octocat/hello-world" {
+		t.Fatalf("GetRepository failed: ok=%v, got=%+v", ok, got)
+	}
+	if _, ok := store.GetRepository("missing"); ok {
+		t.Fatalf("expected false for missing repo")
+	}
+
+	if !store.DeleteRepository(saved.ID) {
+		t.Fatalf("expected true deleting existing repo")
+	}
+	if store.DeleteRepository(saved.ID) {
+		t.Fatalf("expected false deleting already-removed repo")
+	}
+	if len(store.ListRepositories()) != 0 {
+		t.Fatalf("expected 0 repos after delete")
+	}
+}
