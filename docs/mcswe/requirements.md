@@ -450,3 +450,60 @@ acceptance:
   expected_output: "coverage: 100.0% of statements"
 ```
 
+REQ-033 The database store SHALL persist SonarQube credentials (`sonar_token`, `sonar_host_url`, `sonar_org`) and custom API keys in `WorkspaceSettings` and mask non-empty values as `"***"` when returning redacted settings.
+
+```yaml
+source: ADR-016
+status: active
+acceptance:
+  kind: categorical
+  precondition: Workspace settings saved with non-empty sonar_token, sonar_host_url, sonar_org, and custom_keys.
+  action: Call SaveSettings and query GetSettingsRedacted alongside GetSettingsRaw.
+  expected: GetSettingsRedacted returns "***" for sonar_token while preserving the original value in GetSettingsRaw.
+  method: test
+  expected_output: "sonar_token=***"
+```
+
+REQ-034 The frontend setup model SHALL evaluate workspace settings and report permission gating status (`enabled`, `gated`, `missing_secret`) across platform capabilities including repository inspection, standard remediation, workflow mutation, SonarQube quality analysis, and LLM synthesis.
+
+```yaml
+source: ADR-016
+status: active
+acceptance:
+  kind: categorical
+  precondition: WorkspaceSettings object with varying levels of credentials configured.
+  action: Call evaluateSetupCapabilities with unconfigured, basic GitHub, and full token settings.
+  expected: Returns capability map indicating which features are unlocked, which require additional scopes (such as workflow scope or Sonar token), and required next steps.
+  method: test
+  expected_output: "inspect=unlocked workflows=gated"
+```
+
+REQ-035 The frontend pipeline model SHALL generate GitHub Actions workflow definitions for standard CI, SonarCloud analysis, auto-Copilot failure/review summoning, and PR lifecycle automation for a repository coordinate.
+
+```yaml
+source: ADR-017
+status: active
+acceptance:
+  kind: categorical
+  precondition: Repository coordinates and desired pipeline type (basic_ci, sonar, copilot_failure_handler, copilot_review_handler, pr_automation).
+  action: Call generatePipelineWorkflow for each type.
+  expected: Returns workflow filename, YAML content containing required permissions and actions, and installation instructions.
+  method: test
+  expected_output: "filename=.github/workflows/sonar.yml"
+```
+
+REQ-036 The frontend hygiene model SHALL generate code hygiene and agent-readiness configurations for `.editorconfig`, `.gitattributes`, `.pre-commit-config.yaml`, and ecosystem-specific linter/formatter configurations.
+
+```yaml
+source: ADR-018
+status: active
+acceptance:
+  kind: categorical
+  precondition: Target repository language and ecosystem specifications.
+  action: Call generateHygieneConfigs for Go, Java, TypeScript, and Python.
+  expected: Returns configuration files with standard line endings, indentation rules, git attributes, and pre-commit hooks.
+  method: test
+  expected_output: "files_count=3 has_editorconfig=true"
+```
+
+

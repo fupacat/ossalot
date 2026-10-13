@@ -160,3 +160,34 @@ consequences: Regressions are detected automatically on PRs and pushes; test env
 superseded_by: null
 ```
 
+## ADR-016 Granular setup, permission-gated capability model, and extensible credentials
+
+```yaml
+status: resolved
+context: Maintainers need transparent setup guidance that distinguishes base read-only repository inspection from mutation actions (opening PRs, updating workflow files, SonarQube integration, package registries, and LLM reasoning) with capability gating that clearly indicates which secrets unlock which features.
+decision: Extend WorkspaceSettings with SonarQube credentials (sonar_token, sonar_host_url, sonar_org), custom API keys, and implement a pure setup model in web/src/setup_model.mjs that computes capability gates (inspect, remediate_standard, remediate_workflows, sonarqube, webhooks, llm_synthesis) and reports prerequisite completion status.
+consequences: Users can clearly see base access vs gated requirements; sensitive credentials are stored securely and masked on read.
+superseded_by: null
+```
+
+## ADR-017 CI and automated pipeline templates
+
+```yaml
+status: resolved
+context: Projects need repeatable, automated CI/CD and bot automation templates (such as the multi-job matrix, SonarCloud analysis, auto-Copilot CI failure responder, PR lifecycle auto-merge, and release automation seen on tsql-scriptdom-java) that can be inspected and generated on demand.
+decision: Implement a pipeline template catalog and model in web/src/pipeline_model.mjs that formats ready-to-commit GitHub Actions workflow configurations for standard CI, SonarCloud, Copilot summoning, PR automation, and release flows.
+consequences: Maintainers can choose between baseline validation and full autonomous pipeline automation with zero boilerplate guesswork.
+superseded_by: null
+```
+
+## ADR-018 Code hygiene and agent-readiness verification configs
+
+```yaml
+status: resolved
+context: To match the verification infrastructure and agent-readiness standards analyzed by girdle, projects need structured configurations for linters, formatters, editorconfig, gitattributes, git hooks, and structural indexing.
+decision: Implement a code hygiene generator in web/src/hygiene_model.mjs that generates tailored configurations (.editorconfig, .gitattributes, pre-commit config, and linter/formatter configs) across common language ecosystems.
+consequences: Maintains consistent code formatting, drift prevention, and agent-readiness verification across tracked repositories.
+superseded_by: null
+```
+
+

@@ -345,3 +345,44 @@ checker: python3 scripts/run_evidence.py test
 data_schema: null
 ```
 
+## IF-033 Extended workspace credentials and secret masking
+
+```yaml
+component: db
+definition: internal/db/store.go#Store.SaveSettings
+requirements: [REQ-033]
+checker: go vet ./internal/db
+data_schema: internal/db/store.go#WorkspaceSettings
+```
+
+## IF-034 Setup and permission-gating evaluator
+
+```yaml
+component: web
+definition: web/src/setup_model.mjs#evaluateSetupCapabilities
+requirements: [REQ-034]
+checker: node --check web/src/setup_model.mjs
+data_schema: null
+```
+
+## IF-035 CI and automated pipeline template generator
+
+```yaml
+component: web
+definition: web/src/pipeline_model.mjs#generatePipelineWorkflow
+requirements: [REQ-035]
+checker: node --check web/src/pipeline_model.mjs
+data_schema: null
+```
+
+## IF-036 Code hygiene and agent-readiness config generator
+
+```yaml
+component: web
+definition: web/src/hygiene_model.mjs#generateHygieneConfigs
+requirements: [REQ-036]
+checker: node --check web/src/hygiene_model.mjs
+data_schema: null
+```
+
+
