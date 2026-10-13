@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>OSSAlot — Open Source Health, Discovery & Community Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            slate: { 850: '#151f32', 950: '#090d16' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #090d16; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pb-20 md:pb-8">
+  <!-- Top Header -->
+  <header class="sticky top-0 z-30 bg-slate-950/90 backdrop-blur border-b border-slate-800 px-4 py-3">
+    <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
+          OA
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base sm:text-lg tracking-tight text-white">OSSAlot</h1>
+            <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">MCSWE 1.0 Verified</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">OSS Standards Scorecard, 14-Day Traffic Saver, Issue Opportunity Finder & Community Hub</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <select id="repoSelector" onchange="selectRepo(this.value)" class="bg-slate-900 border border-slate-700 text-xs sm:text-sm rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500"></select>
+        <button onclick="openAddRepoModal()" class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs sm:text-sm font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm">
+          <span>+ Repo</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Pills -->
+    <nav class="max-w-6xl mx-auto mt-3 flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+      <button onclick="switchTab('portfolio')" data-tab="portfolio" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white">Portfolio & Scorecard</button>
+      <button onclick="switchTab('traffic')" data-tab="traffic" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Traffic & Registries</button>
+      <button onclick="switchTab('opportunities')" data-tab="opportunities" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">OSS Opportunity Finder</button>
+      <button onclick="switchTab('community')" data-tab="community" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Community & Playbooks</button>
+      <button onclick="switchTab('inbox')" data-tab="inbox" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Action Inbox</button>
+      <button onclick="switchTab('settings')" data-tab="settings" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Settings</button>
+    </nav>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="max-w-6xl w-full mx-auto px-4 pt-4 space-y-5 flex-1">
+    <!-- KPI Summary Strip -->
+    <section id="kpiStrip" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></section>
+
+    <!-- TAB 1: Portfolio & Standards Scorecard -->
+    <section id="tab-portfolio" class="space-y-4">
+      <div id="repoHeroCard" class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm sm:text-base font-semibold text-white">OSS Standards & OpenSSF Audit Checks</h2>
+              <p class="text-xs text-slate-400">Tap "Remediate" on any check to generate a tailored file or 1-click GitHub Pull Request</p>
+            </div>
+            <button onclick="triggerAudit()" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 font-medium">Re-Audit</button>
+          </div>
+          <div id="checksList" class="divide-y divide-slate-800/80"></div>
+        </div>
+        <div class="space-y-4">
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+            <h3 class="text-sm font-semibold text-white">4-Pillar Breakdown</h3>
+            <div id="pillarBars" class="space-y-3"></div>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-semibold text-white">Tracked Portfolio</h3>
+              <span id="portfolioCountBadge" class="text-xs text-slate-400"></span>
+            </div>
+            <div id="portfolioList" class="space-y-2"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: Traffic & Package Registries -->
+    <section id="tab-traffic" class="hidden space-y-4">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-sm sm:text-base font-semibold text-white">14-Day GitHub Traffic Archiver & Adoption History</h2>
+            <p class="text-xs text-slate-400">Persists daily views, unique visitors, clones, and referrers permanently beyond GitHub's 14-day window</p>
+          </div>
+          <button onclick="collectMetricsNow()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg">+ Snapshot Today</button>
+        </div>
+        <div id="trafficChartContainer" class="space-y-3"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <h3 class="text-sm font-semibold text-white">Top Traffic Referrers (Aggregated)</h3>
+          <div id="referrersTable" class="space-y-2"></div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <h3 class="text-sm font-semibold text-white">Package Registry Downloads</h3>
+          <div id="registryCards" class="grid grid-cols-2 gap-2.5"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: AI Capability Profiler & OSS Opportunity Finder -->
+    <section id="tab-opportunities" class="hidden space-y-4">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-sm sm:text-base font-semibold text-white">AI Capability Profile</h2>
+            <p class="text-xs text-slate-400">Synthesized problem statements, target personas, and GitHub search queries</p>
+          </div>
+          <button onclick="runDiscovery()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg">Scan GitHub Issues</button>
+        </div>
+        <div id="profileContainer" class="text-xs space-y-2"></div>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+        <h3 class="text-sm sm:text-base font-semibold text-white">High-Signal External GitHub Opportunities (Score &ge; 70%)</h3>
+        <p class="text-xs text-slate-400">External repositories with open issues that your project genuinely solves, complete with a PR Implementation Plan</p>
+        <div id="githubOpportunitiesList" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Community Listening & Marketing Playbooks -->
+    <section id="tab-community" class="hidden space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+        <div>
+          <h2 class="text-sm sm:text-base font-semibold text-white">Dual-Mode Community Listening & Non-Spammy Launch Playbooks</h2>
+          <p class="text-xs text-slate-400">Hacker News, Reddit, Stack Overflow, Dev.to, and Lobsters</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="scanCommunityFeeds()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg">Scan Feeds</button>
+          <button onclick="generatePlaybooks()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg">Generate Playbooks</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-white">Inbound Community Discussions</h3>
+          <div id="communityThreadsList" class="space-y-3"></div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-white">Outbound Launch Playbooks & Community Guardrails</h3>
+          <div id="playbooksList" class="space-y-3"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: Unified Action Inbox & Campaign Attribution -->
+    <section id="tab-inbox" class="hidden space-y-4">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-sm sm:text-base font-semibold text-white">Unified Opportunity & Action Inbox</h2>
+            <p class="text-xs text-slate-400">Track opportunities from discovery to human-reviewed submission and referral impact</p>
+          </div>
+          <div class="flex gap-1.5 flex-wrap" id="inboxStatusTabs"></div>
+        </div>
+        <div id="inboxItemsList" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- TAB 6: Settings & Background Jobs -->
+    <section id="tab-settings" class="hidden space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <h2 class="text-sm sm:text-base font-semibold text-white">Workspace Credentials & LLM Provider</h2>
+          <p class="text-xs text-slate-400">Secrets are masked as <code class="text-emerald-400">***</code> on read (REQ-003)</p>
+          <form onsubmit="saveSettings(event)" class="space-y-3 text-xs">
+            <div>
+              <label class="block text-slate-400 mb-1">GitHub Personal Access Token</label>
+              <input id="setGhToken" type="password" placeholder="ghp_..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-400 mb-1">LLM Provider</label>
+                <select id="setLlmProvider" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200">
+                  <option value="gemini">Google Gemini</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="ollama">Ollama (Local)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">LLM API Key</label>
+                <input id="setLlmKey" type="password" placeholder="Optional (uses template fallback)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Slack Webhook URL (High-Value &ge;85% Alerts)</label>
+              <input id="setSlackUrl" type="text" placeholder="https://hooks.slack.com/services/..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200" />
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 rounded-lg">Save Workspace Settings</button>
+          </form>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm sm:text-base font-semibold text-white">Background Scheduler & Scan Jobs</h2>
+            <button onclick="runScheduledJob('daily_portfolio_sync')" class="bg-slate-800 hover:bg-slate-700 text-xs text-indigo-300 px-2.5 py-1 rounded-lg border border-slate-700">Run Sync Job</button>
+          </div>
+          <div id="jobsList" class="space-y-2 text-xs"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Remediation / Draft Modal -->
+  <div id="modalOverlay" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-t-2xl sm:rounded-2xl p-4 sm:p-5 space-y-3 max-h-[88vh] flex flex-col">
+      <div class="flex items-center justify-between">
+        <h3 id="modalTitle" class="text-sm sm:text-base font-semibold text-white"></h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white text-lg px-2">&times;</button>
+      </div>
+      <p id="modalSubtitle" class="text-xs text-slate-400"></p>
+      <pre id="modalContent" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-emerald-300 overflow-x-auto overflow-y-auto flex-1 whitespace-pre-wrap font-mono"></pre>
+      <div id="modalFooter" class="flex items-center justify-end gap-2 pt-2"></div>
+    </div>
+  </div>
+
+  <!-- Add Repo Modal -->
+  <div id="addRepoModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-white">Add Live GitHub Repository</h3>
+        <button onclick="closeAddRepoModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+      <form onsubmit="submitAddRepo(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1">GitHub URL or <code class="text-indigo-300">owner/repo</code></label>
+          <input id="newRepoUrl" type="text" required placeholder="e.g. fupacat/ossalot" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500" />
+        </div>
+        <div class="flex gap-1.5 flex-wrap">
+          <span class="text-[11px] text-slate-500">Quick fill:</span>
+          <button type="button" onclick="document.getElementById('newRepoUrl').value='fupacat/ossalot'" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300">fupacat/ossalot</button>
+          <button type="button" onclick="document.getElementById('newRepoUrl').value='go-chi/chi'" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">go-chi/chi</button>
+        </div>
+        <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+          <input id="newRepoOwned" type="checkbox" checked class="rounded border-slate-700" />
+          <span>Owned by my workspace (enables 1-click remediation PR creation)</span>
+        </label>
+        <div id="addRepoError" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5"></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeAddRepoModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300">Cancel</button>
+          <button id="addRepoSubmitBtn" type="submit" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium">Audit &amp; Add Live Repo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { summarizePortfolio, getStatusBadge, buildRemediationRequest } from '/src/model.mjs';
+    import { buildTrafficSeries, aggregateReferrers } from '/src/metrics_model.mjs';
+    import { filterOpportunities, formatPRPlanSummary } from '/src/discovery_model.mjs';
+    import { groupInboxByStatus } from '/src/inbox_model.mjs';
+
+    let state = {
+      repos: [],
+      selectedRepoId: '',
+      metrics: [],
+      profile: null,
+      opportunities: [],
+      jobs: [],
+      settings: {},
+      inboxStatusFilter: 'new',
+    };
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    async function loadAll() {
+      state.repos = await api('/api/v1/repos');
+      state.settings = await api('/api/v1/settings');
+      state.jobs = await api('/api/v1/jobs');
+      state.opportunities = await api('/api/v1/opportunities');
+      if (state.selectedRepoId && !state.repos.some(r => r.id === state.selectedRepoId)) {
+        state.selectedRepoId = '';
+      }
+      if (!state.selectedRepoId && state.repos.length > 0) {
+        state.selectedRepoId = state.repos[0].id;
+      }
+      if (state.selectedRepoId) {
+        state.metrics = await api(`/api/v1/repos/${state.selectedRepoId}/metrics`).catch(() => []);
+        const profRes = await fetch(`/api/v1/repos/${state.selectedRepoId}/profile`);
+        state.profile = profRes.ok ? await profRes.json() : null;
+      } else {
+        state.metrics = [];
+        state.profile = null;
+      }
+      render();
+    }
+
+    function currentRepo() {
+      return state.repos.find(r => r.id === state.selectedRepoId) || state.repos[0] || null;
+    }
+
+    function render() {
+      const summary = summarizePortfolio(state.repos);
+      const repo = currentRepo();
+
+      // Selector
+      const sel = document.getElementById('repoSelector');
+      sel.innerHTML = state.repos.map(r =>
+        `<option value="${r.id}" ${r.id === (repo && repo.id) ? 'selected' : ''}>${r.full_name} (${r.standards_score}%)</option>`
+      ).join('');
+
+      // KPI Strip
+      const latestSnap = state.metrics.length > 0 ? state.metrics[state.metrics.length - 1] : null;
+      document.getElementById('kpiStrip').innerHTML = `
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">Tracked Repositories</div>
+          <div class="text-xl font-bold text-white mt-0.5">${summary.totalRepos} <span class="text-xs font-normal text-emerald-400">(${summary.ownedRepos} owned)</span></div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">Avg Standards Score</div>
+          <div class="text-xl font-bold text-indigo-400 mt-0.5">${summary.avgStandardsScore}<span class="text-xs text-slate-400">/100</span></div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">14d Unique Views / Clones</div>
+          <div class="text-xl font-bold text-emerald-400 mt-0.5">${latestSnap ? latestSnap.views_unique : 0} <span class="text-xs text-slate-400">/ ${latestSnap ? latestSnap.clones_unique : 0} clones</span></div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">Action Inbox Matches</div>
+          <div class="text-xl font-bold text-amber-400 mt-0.5">${state.opportunities.length} <span class="text-xs text-slate-400">high-fit</span></div>
+        </div>
+      `;
+
+      // Always render settings & jobs even when portfolio is empty
+      document.getElementById('setGhToken').value = state.settings.github_token || '';
+      document.getElementById('setLlmProvider').value = state.settings.llm_provider || 'gemini';
+      document.getElementById('setLlmKey').value = state.settings.llm_api_key || '';
+      document.getElementById('setSlackUrl').value = state.settings.slack_webhook_url || '';
+
+      document.getElementById('jobsList').innerHTML = state.jobs.map(j => `
+        <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
+          <div>
+            <div class="font-medium text-slate-200">${j.job_name}</div>
+            <div class="text-[11px] text-slate-500">${j.executed_at}</div>
+          </div>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${j.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}">${j.status}</span>
+        </div>
+      `).join('') || `<p class="text-slate-400">No jobs executed yet.</p>`;
+
+      if (!repo) {
+        document.getElementById('repoHeroCard').innerHTML = `
+          <div class="text-center py-6 space-y-3">
+            <div class="text-sm font-semibold text-white">No Repositories Added Yet</div>
+            <p class="text-xs text-slate-400 max-w-md mx-auto">Tap <b>+ Repo</b> in the top-right corner to inspect a live GitHub repository (such as <code class="text-indigo-300">fupacat/ossalot</code>) and run its 15-check standards audit.</p>
+            <div class="pt-1 flex justify-center gap-2">
+              <button onclick="openAddRepoModal()" class="text-xs px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">+ Add GitHub Repository</button>
+            </div>
+          </div>
+        `;
+        document.getElementById('checksList').innerHTML = `<p class="text-xs text-slate-400 py-3">Add a repository to view its 15-check audit results.</p>`;
+        document.getElementById('pillarBars').innerHTML = `<p class="text-xs text-slate-400">No repository selected.</p>`;
+        document.getElementById('portfolioCountBadge').textContent = `0 repos`;
+        document.getElementById('portfolioList').innerHTML = `<p class="text-xs text-slate-400">Empty portfolio.</p>`;
+        return;
+      }
+
+      // Repo Hero
+      document.getElementById('repoHeroCard').innerHTML = `
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <a href="https://github.com/${repo.full_name}" target="_blank" rel="noopener" class="text-base sm:text-lg font-bold text-white hover:text-indigo-300 underline decoration-slate-700">${repo.full_name} &nearr;</a>
+              <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">${repo.primary_language || 'Polyglot'}</span>
+              <span class="text-[11px] px-2 py-0.5 rounded-md ${repo.is_owned ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-slate-800 text-slate-400'}">${repo.is_owned ? 'Owned Repo (1-Click PR Enabled)' : 'External Public Repo'}</span>
+              <button onclick="deleteRepo('${repo.id}')" class="text-[11px] px-2 py-0.5 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20">Remove</button>
+            </div>
+            <p class="text-xs text-slate-300">${repo.description || 'No description provided'}</p>
+            <div class="flex gap-1.5 flex-wrap pt-1">
+              ${(repo.topics || []).map(t => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">#${t}</span>`).join('')}
+            </div>
+          </div>
+          <div class="flex items-center gap-3 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2">
+            <div class="text-right">
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">Standards Score</div>
+              <div class="text-2xl font-extrabold ${repo.standards_score >= 80 ? 'text-emerald-400' : 'text-amber-400'}">${repo.standards_score}<span class="text-xs text-slate-500">/100</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Checks List
+      const checks = (repo.latest_audit && repo.latest_audit.checks) || [];
+      document.getElementById('checksList').innerHTML = checks.map(c => {
+        const badge = getStatusBadge(c.status);
+        const badgeColors = badge.tone === 'emerald'
+          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+          : badge.tone === 'amber'
+          ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+          : 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+        return `
+          <div class="py-2.5 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${badgeColors}">${badge.label}</span>
+                <span class="text-xs font-medium text-slate-200 truncate">${c.check_key}</span>
+                <span class="text-[11px] text-slate-500">(${c.score}/${c.weight} pts)</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">${c.details}</p>
+            </div>
+            ${c.status !== 'pass' ? `
+              <button onclick="openRemediate('${c.check_key}')" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 font-medium">
+                Remediate
+              </button>
+            ` : `<span class="text-[11px] text-emerald-400 shrink-0">&check; Verified</span>`}
+          </div>
+        `;
+      }).join('') || `<p class="text-xs text-slate-400 py-3">No audit checks run yet. Tap "Re-run 15-Check Audit" above.</p>`;
+
+      // 4-Pillar Bars
+      const cats = (repo.latest_audit && repo.latest_audit.category_scores) || {};
+      const pillarNames = [
+        ['community_files', 'Community & Governance'],
+        ['documentation_quality', 'Documentation & Onboarding'],
+        ['technical_hygiene', 'Technical & Release Hygiene'],
+        ['security_openssf', 'Security & OpenSSF Scorecard'],
+      ];
+      document.getElementById('pillarBars').innerHTML = pillarNames.map(([key, label]) => {
+        const val = cats[key] || 0;
+        const pct = Math.round((val / 25) * 100);
+        return `
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-300">${label}</span>
+              <span class="font-semibold text-white">${val}/25</span>
+            </div>
+            <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-indigo-500 to-emerald-400" style="width:${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Portfolio sidebar list
+      document.getElementById('portfolioCountBadge').textContent = `${state.repos.length} repos`;
+      document.getElementById('portfolioList').innerHTML = state.repos.map(r => `
+        <button onclick="selectRepo('${r.id}')" class="w-full text-left p-2.5 rounded-xl border transition flex items-center justify-between ${r.id === repo.id ? 'bg-slate-800/90 border-indigo-500/50' : 'bg-slate-950/60 border-slate-800 hover:bg-slate-800/40'}">
+          <div class="truncate pr-2">
+            <div class="text-xs font-semibold text-white truncate">${r.full_name}</div>
+            <div class="text-[11px] text-slate-400">${r.primary_language || 'Repo'} &bull; ${r.is_owned ? 'Owned' : 'Public'}</div>
+          </div>
+          <span class="text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-emerald-400">${r.standards_score}%</span>
+        </button>
+      `).join('');
+
+      // Traffic & Registries Tab
+      const series = buildTrafficSeries(state.metrics);
+      const refs = aggregateReferrers(state.metrics);
+      document.getElementById('trafficChartContainer').innerHTML = series.length === 0
+        ? `<p class="text-xs text-slate-400">No snapshots yet. Tap "+ Snapshot Today" to archive GitHub traffic.</p>`
+        : `
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            ${series.map(pt => `
+              <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-semibold text-indigo-300">${pt.date}</span>
+                  <span class="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">Score ${pt.adoptionScore}</span>
+                </div>
+                <div class="text-xs text-slate-300">Stars: <b>${pt.stars}</b> &bull; Unique Views: <b>${pt.viewsUnique}</b></div>
+                <div class="text-xs text-slate-400">Unique Clones: <b>${pt.clonesUnique}</b> &bull; Pkg Downloads: <b>${pt.registryDownloads}</b></div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+      document.getElementById('referrersTable').innerHTML = refs.length === 0
+        ? `<p class="text-xs text-slate-400">No referrer data recorded yet.</p>`
+        : refs.map(r => `
+          <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs">
+            <span class="font-medium text-slate-200">${r.referrer}</span>
+            <span class="text-emerald-400 font-semibold">${r.count} views <span class="text-slate-500">(${r.uniques} unique)</span></span>
+          </div>
+        `).join('');
+
+      const dlMap = (latestSnap && latestSnap.registry_downloads) || {};
+      document.getElementById('registryCards').innerHTML = Object.entries(dlMap).map(([eco, count]) => `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400">${eco}</div>
+          <div class="text-lg font-bold text-white mt-0.5">${Number(count).toLocaleString()}</div>
+          <div class="text-[10px] text-emerald-400">downloads/day</div>
+        </div>
+      `).join('') || `<p class="text-xs text-slate-400 col-span-2">No registry coordinates configured.</p>`;
+
+      // Opportunities Tab
+      if (state.profile) {
+        document.getElementById('profileContainer').innerHTML = `
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+            <div class="text-slate-200 font-medium">${state.profile.summary}</div>
+            <div class="flex flex-wrap gap-1.5">
+              ${(state.profile.ecosystem_keywords || []).map(k => `<span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[11px]">${k}</span>`).join('')}
+            </div>
+            <div class="text-slate-400"><b>Search Queries:</b> ${(state.profile.search_queries || []).map(q => `<code class="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-300">${q}</code>`).join(' ')}</div>
+          </div>
+        `;
+      }
+
+      const repoOpps = state.opportunities.filter(o => o.repo_id === repo.id);
+      const ghOpps = filterOpportunities(repoOpps, { category: 'github_issue', minScore: 70 });
+      document.getElementById('githubOpportunitiesList').innerHTML = ghOpps.map(o => {
+        const plan = formatPRPlanSummary(o);
+        return `
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">${o.relevance_score}% Match</span>
+                <span class="text-xs text-indigo-300 font-medium ml-1">${o.source_community}</span>
+                <h4 class="text-sm font-semibold text-white mt-1">${o.title}</h4>
+              </div>
+              <button onclick="showOpportunityDraft('${o.id}')" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium">View PR Plan</button>
+            </div>
+            <p class="text-xs text-slate-400">${o.legitimacy_reason}</p>
+            <div class="text-[11px] text-slate-500">${plan.stepsCount} implementation steps ready &bull; Status: <b class="text-slate-300">${o.status}</b></div>
+          </div>
+        `;
+      }).join('') || `<p class="text-xs text-slate-400">Tap "Scan GitHub Issues" to discover external projects needing ${repo.name}.</p>`;
+
+      // Community & Playbooks Tab
+      const commOpps = repoOpps.filter(o => o.category !== 'github_issue' && o.category !== 'marketing_playbook');
+      const playbooks = repoOpps.filter(o => o.category === 'marketing_playbook');
+
+      document.getElementById('communityThreadsList').innerHTML = commOpps.map(o => `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">${o.category} &bull; ${o.relevance_score}%</span>
+            <button onclick="showOpportunityDraft('${o.id}')" class="text-xs text-emerald-400 hover:underline">Draft Reply &rarr;</button>
+          </div>
+          <div class="text-xs font-semibold text-white">${o.title}</div>
+          <p class="text-[11px] text-slate-400">${o.legitimacy_reason}</p>
+        </div>
+      `).join('') || `<p class="text-xs text-slate-400">Tap "Scan Feeds" to scan HN, Reddit, StackOverflow, Dev.to & Lobsters.</p>`;
+
+      document.getElementById('playbooksList').innerHTML = playbooks.map(o => `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400">${o.source_community}</span>
+            <button onclick="showOpportunityDraft('${o.id}')" class="text-xs px-2 py-0.5 rounded bg-slate-800 text-indigo-300">Open Draft</button>
+          </div>
+          <div class="text-xs font-semibold text-white">${o.draft_title}</div>
+          <p class="text-[11px] text-amber-300/90"><b>Guardrail:</b> ${o.community_rules_notes}</p>
+        </div>
+      `).join('') || `<p class="text-xs text-slate-400">Tap "Generate Playbooks" to build launch posts.</p>`;
+
+      // Unified Action Inbox Tab
+      const buckets = groupInboxByStatus(state.opportunities);
+      const statuses = ['new', 'saved', 'drafted', 'submitted', 'dismissed'];
+      document.getElementById('inboxStatusTabs').innerHTML = statuses.map(st => `
+        <button onclick="setInboxFilter('${st}')" class="text-xs px-2.5 py-1 rounded-lg font-medium capitalize ${state.inboxStatusFilter === st ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 border border-slate-800'}">
+          ${st} (${(buckets[st] || []).length})
+        </button>
+      `).join('');
+
+      const activeInbox = buckets[state.inboxStatusFilter] || [];
+      document.getElementById('inboxItemsList').innerHTML = activeInbox.map(o => `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-800 text-indigo-300">${o.category}</span>
+              <span class="text-xs font-semibold text-emerald-400">${o.relevance_score}% Fit</span>
+              <span class="text-xs text-slate-400">${o.source_community}</span>
+            </div>
+            <div class="text-sm font-semibold text-white">${o.title}</div>
+            <p class="text-xs text-slate-400">${o.legitimacy_reason}</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
+            <button onclick="showOpportunityDraft('${o.id}')" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-white">Draft / Plan</button>
+            <button onclick="updateOppStatus('${o.id}', 'saved')" class="text-xs px-2.5 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30">Save</button>
+            <button onclick="updateOppStatus('${o.id}', 'submitted')" class="text-xs px-2.5 py-1 rounded-lg bg-emerald-600/20 text-emerald-300 border border-emerald-500/30">Mark Submitted</button>
+            <button onclick="updateOppStatus('${o.id}', 'dismissed')" class="text-xs px-2 py-1 rounded-lg bg-rose-600/15 text-rose-300">Dismiss</button>
+          </div>
+        </div>
+      `).join('') || `<p class="text-xs text-slate-400">No items in "${state.inboxStatusFilter}" status.</p>`;
+    }
+
+    // Expose handlers to window
+    window.switchTab = (tab) => {
+      document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tab) {
+          btn.className = 'tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white';
+        } else {
+          btn.className = 'tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800';
+        }
+      });
+    };
+
+    window.selectRepo = async (id) => {
+      state.selectedRepoId = id;
+      await loadAll();
+    };
+
+    window.deleteRepo = async (id) => {
+      await api(`/api/v1/repos/${id}`, { method: 'DELETE' });
+      if (state.selectedRepoId === id) {
+        state.selectedRepoId = null;
+      }
+      await loadAll();
+    };
+
+    window.openRemediate = async (checkKey) => {
+      const repo = currentRepo();
+      const payload = buildRemediationRequest(checkKey, false);
+      const res = await api(`/api/v1/repos/${repo.id}/remediate`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const draft = res.draft || {};
+      document.getElementById('modalTitle').textContent = `Remediation: ${draft.file_path || checkKey}`;
+      document.getElementById('modalSubtitle').textContent = `Branch: ${draft.branch_name} • Commit: ${draft.commit_message}`;
+      document.getElementById('modalContent').textContent = draft.content || JSON.stringify(res, null, 2);
+      document.getElementById('modalFooter').innerHTML = `
+        <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200">Copy File</button>
+        ${repo.is_owned ? `<button onclick="createRemediationPR('${checkKey}')" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium">1-Click Open GitHub PR</button>` : ''}
+      `;
+      document.getElementById('modalOverlay').classList.remove('hidden');
+    };
+
+    window.createRemediationPR = async (checkKey) => {
+      const repo = currentRepo();
+      const res = await api(`/api/v1/repos/${repo.id}/remediate`, {
+        method: 'POST',
+        body: JSON.stringify(buildRemediationRequest(checkKey, true)),
+      });
+      document.getElementById('modalSubtitle').innerHTML = `<span class="text-emerald-400 font-semibold">Pull Request Created: ${res.pr_url || 'Success'}</span>`;
+    };
+
+    window.showOpportunityDraft = (id) => {
+      const opp = state.opportunities.find(o => o.id === id);
+      if (!opp) return;
+      document.getElementById('modalTitle').textContent = opp.draft_title || opp.title;
+      document.getElementById('modalSubtitle').textContent = `${opp.source_community} (${opp.relevance_score}% Relevance) • Action: ${opp.recommended_action}`;
+      const bodyText = opp.pr_implementation_plan
+        ? `=== PR IMPLEMENTATION PLAN ===\n${opp.pr_implementation_plan}\n\n=== DRAFT COMMENT / PR BODY ===\n${opp.draft_body}`
+        : `=== COMMUNITY GUARDRAILS ===\n${opp.community_rules_notes || 'Lead with technical value.'}\n\n=== DRAFT POST ===\n${opp.draft_body}`;
+      document.getElementById('modalContent').textContent = bodyText;
+      document.getElementById('modalFooter').innerHTML = `
+        <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium">Copy Draft</button>
+      `;
+      document.getElementById('modalOverlay').classList.remove('hidden');
+    };
+
+    window.closeModal = () => document.getElementById('modalOverlay').classList.add('hidden');
+    window.openAddRepoModal = () => {
+      document.getElementById('addRepoError').classList.add('hidden');
+      document.getElementById('addRepoModal').classList.remove('hidden');
+    };
+    window.closeAddRepoModal = () => document.getElementById('addRepoModal').classList.add('hidden');
+
+    window.submitAddRepo = async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('addRepoError');
+      const btn = document.getElementById('addRepoSubmitBtn');
+      errEl.classList.add('hidden');
+      const url = document.getElementById('newRepoUrl').value.trim();
+      const isOwned = document.getElementById('newRepoOwned').checked;
+      btn.disabled = true;
+      btn.textContent = 'Inspecting on GitHub & Auditing...';
+      try {
+        const created = await api('/api/v1/repos', {
+          method: 'POST',
+          body: JSON.stringify({ url, is_owned: isOwned }),
+        });
+        if (created && created.id) {
+          state.selectedRepoId = created.id;
+          // Automatically run live 15-check standards audit on the newly added repository
+          await api(`/api/v1/repos/${created.id}/audit`, { method: 'POST' });
+        }
+        closeAddRepoModal();
+        await loadAll();
+      } catch (err) {
+        errEl.textContent = err.message || 'Failed to inspect GitHub repository';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add & Audit';
+      }
+    };
+
+    window.triggerAudit = async () => {
+      const repo = currentRepo();
+      await api(`/api/v1/repos/${repo.id}/audit`, { method: 'POST' });
+      await loadAll();
+    };
+
+    window.collectMetricsNow = async () => {
+      const repo = currentRepo();
+      await api(`/api/v1/repos/${repo.id}/metrics/collect`, {
+        method: 'POST',
+        body: JSON.stringify({ packages: { npm: repo.name, golang: repo.full_name } }),
+      });
+      await loadAll();
+    };
+
+    window.runDiscovery = async () => {
+      const repo = currentRepo();
+      await api(`/api/v1/repos/${repo.id}/profile`, { method: 'POST' });
+      await api(`/api/v1/repos/${repo.id}/discover`, { method: 'POST' });
+      await loadAll();
+    };
+
+    window.scanCommunityFeeds = async () => {
+      const repo = currentRepo();
+      await api(`/api/v1/repos/${repo.id}/community/scan`, { method: 'POST' });
+      await loadAll();
+    };
+
+    window.generatePlaybooks = async () => {
+      const repo = currentRepo();
+      await api(`/api/v1/repos/${repo.id}/playbooks`, { method: 'POST' });
+      await loadAll();
+    };
+
+    window.setInboxFilter = (st) => {
+      state.inboxStatusFilter = st;
+      render();
+    };
+
+    window.updateOppStatus = async (id, status) => {
+      await api(`/api/v1/opportunities/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+      await loadAll();
+    };
+
+    window.saveSettings = async (e) => {
+      e.preventDefault();
+      await api('/api/v1/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          github_token: document.getElementById('setGhToken').value,
+          llm_provider: document.getElementById('setLlmProvider').value,
+          llm_api_key: document.getElementById('setLlmKey').value,
+          slack_webhook_url: document.getElementById('setSlackUrl').value,
+        }),
+      });
+      await loadAll();
+    };
+
+    window.runScheduledJob = async (name) => {
+      await api(`/api/v1/jobs/${name}/run`, { method: 'POST' });
+      await loadAll();
+    };
+
+    loadAll();
+  </script>
+</body>
+</html>
