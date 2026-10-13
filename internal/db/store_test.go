@@ -43,7 +43,7 @@ func TestOpenStoreAndDefaultWorkspace(t *testing.T) {
 	}
 }
 
-// TRACEABILITY_MAPPING: REQ-003
+// TRACEABILITY_MAPPING: REQ-003, REQ-033
 func TestWorkspaceSettingsMasking(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "settings.db")
 	store, err := OpenStore(dbPath)
@@ -84,13 +84,32 @@ func TestWorkspaceSettingsMasking(t *testing.T) {
 		LLMProvider:  "anthropic",
 		LLMAPIKey:    "***",
 		LLMFastModel: "claude-3-5-haiku",
+		SonarToken:   "sqp_secret789",
+		SonarHostURL: "https://sonarcloud.io",
+		SonarOrg:     "fupacat",
+		CustomKeys:   map[string]string{"codecov": "tok_123"},
 	})
 	if err != nil {
 		t.Fatalf("SaveSettings masked update failed: %v", err)
 	}
 	rawAfter := store.GetSettingsRaw()
-	if rawAfter.GitHubToken != "ghp_secret123" || rawAfter.LLMAPIKey != "sk-secret456" || rawAfter.LLMProvider != "anthropic" {
+	if rawAfter.GitHubToken != "ghp_secret123" || rawAfter.LLMAPIKey != "sk-secret456" || rawAfter.LLMProvider != "anthropic" || rawAfter.SonarToken != "sqp_secret789" {
 		t.Fatalf("secrets were not preserved on masked save: %+v", rawAfter)
+	}
+	redactedSonar := store.GetSettingsRedacted()
+	if redactedSonar.SonarToken != "***" {
+		t.Fatalf("expected SonarToken to be masked, got %s", redactedSonar.SonarToken)
+	}
+
+	// Saving SonarToken with "***" preserves existing sonar secret
+	err = store.SaveSettings(WorkspaceSettings{
+		SonarToken: "***",
+	})
+	if err != nil {
+		t.Fatalf("SaveSettings sonar masked update failed: %v", err)
+	}
+	if store.GetSettingsRaw().SonarToken != "sqp_secret789" {
+		t.Fatalf("sonar token was not preserved on masked save")
 	}
 }
 

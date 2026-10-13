@@ -16,16 +16,20 @@ type Workspace struct {
 	Mode string `json:"mode"`
 }
 
-// TRACEABILITY_MAPPING: REQ-003
+// TRACEABILITY_MAPPING: REQ-003, REQ-033
 type WorkspaceSettings struct {
-	WorkspaceID       string `json:"workspace_id"`
-	GitHubToken       string `json:"github_token"`
-	LLMProvider       string `json:"llm_provider"`
-	LLMAPIKey         string `json:"llm_api_key"`
-	LLMFastModel      string `json:"llm_fast_model"`
-	LLMStrongModel    string `json:"llm_strong_model"`
-	SlackWebhookURL   string `json:"slack_webhook_url"`
-	DiscordWebhookURL string `json:"discord_webhook_url"`
+	WorkspaceID       string            `json:"workspace_id"`
+	GitHubToken       string            `json:"github_token"`
+	LLMProvider       string            `json:"llm_provider"`
+	LLMAPIKey         string            `json:"llm_api_key"`
+	LLMFastModel      string            `json:"llm_fast_model"`
+	LLMStrongModel    string            `json:"llm_strong_model"`
+	SlackWebhookURL   string            `json:"slack_webhook_url"`
+	DiscordWebhookURL string            `json:"discord_webhook_url"`
+	SonarToken        string            `json:"sonar_token,omitempty"`
+	SonarHostURL      string            `json:"sonar_host_url,omitempty"`
+	SonarOrg          string            `json:"sonar_org,omitempty"`
+	CustomKeys        map[string]string `json:"custom_keys,omitempty"`
 }
 
 // TRACEABILITY_MAPPING: REQ-004
@@ -126,7 +130,7 @@ func (s *Store) GetDefaultWorkspace() Workspace {
 	return s.state.Workspace
 }
 
-// TRACEABILITY_MAPPING: REQ-003
+// TRACEABILITY_MAPPING: REQ-003, REQ-033
 func (s *Store) SaveSettings(settings WorkspaceSettings) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -137,18 +141,21 @@ func (s *Store) SaveSettings(settings WorkspaceSettings) error {
 	if settings.LLMAPIKey == "***" {
 		settings.LLMAPIKey = s.state.Settings.LLMAPIKey
 	}
+	if settings.SonarToken == "***" {
+		settings.SonarToken = s.state.Settings.SonarToken
+	}
 	s.state.Settings = settings
 	return s.flushLocked()
 }
 
-// TRACEABILITY_MAPPING: REQ-003
+// TRACEABILITY_MAPPING: REQ-003, REQ-033
 func (s *Store) GetSettingsRaw() WorkspaceSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.state.Settings
 }
 
-// TRACEABILITY_MAPPING: REQ-003
+// TRACEABILITY_MAPPING: REQ-003, REQ-033
 func (s *Store) GetSettingsRedacted() WorkspaceSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -158,6 +165,9 @@ func (s *Store) GetSettingsRedacted() WorkspaceSettings {
 	}
 	if out.LLMAPIKey != "" {
 		out.LLMAPIKey = "***"
+	}
+	if out.SonarToken != "" {
+		out.SonarToken = "***"
 	}
 	return out
 }
