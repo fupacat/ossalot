@@ -351,3 +351,87 @@ acceptance:
   method: test
   expected_output: "filtered=1 topScore=92"
 ```
+
+REQ-026 The community scanner SHALL query configured community feed endpoints (`hackernews`, `reddit`, `stackoverflow`, `devto`, `lobsters`) for a repository's capability profile keywords and return scored `Opportunity` items with platform-specific recommended actions and draft replies.
+
+```yaml
+source: ADR-013
+status: active
+acceptance:
+  kind: categorical
+  precondition: Mock community feed HTTP server returning threads for hackernews, reddit, stackoverflow, devto, and lobsters.
+  action: Call ScanCommunities with a repository and CapabilityProfile.
+  expected: Returns Opportunity records with matching categories, external IDs, relevance scores, and draft bodies.
+  method: test
+  expected_output: "scanned_categories=5"
+```
+
+REQ-027 The marketing playbook generator SHALL produce outbound `Opportunity` playbooks (`Show HN`, `Reddit Deep-Dive`, `Dev.to Tutorial`, `StackOverflow Answer Guide`) with populated `community_rules_notes`, `draft_title`, and `draft_body` for a repository.
+
+```yaml
+source: ADR-013
+status: active
+acceptance:
+  kind: categorical
+  precondition: Repository record and CapabilityProfile.
+  action: Call GenerateMarketingPlaybooks for the repository.
+  expected: Returns 4 playbooks with category "marketing_playbook", non-empty community_rules_notes, and repository-specific draft bodies.
+  method: test
+  expected_output: "playbooks=4"
+```
+
+REQ-028 The webhook notifier SHALL send HTTP POST JSON notifications to configured Slack and Discord webhook URLs when an opportunity has `relevance_score >= 85` and perform no HTTP request when `relevance_score < 85` or no webhook URLs are configured.
+
+```yaml
+source: ADR-014
+status: active
+acceptance:
+  kind: categorical
+  precondition: Mock webhook HTTP server and WorkspaceSettings with Slack and Discord webhook URLs.
+  action: Call NotifyHighValueOpportunity with a low-score opportunity (75) and a high-score opportunity (90).
+  expected: Low-score opportunity sends 0 webhook requests; high-score opportunity sends requests to configured webhooks and returns the count of notified endpoints.
+  method: test
+  expected_output: "low_sent=0 high_sent=2"
+```
+
+REQ-029 The job scheduler SHALL register named scan jobs, execute a job on demand while recording `ScanJobRecord` status (`completed` or `failed`), and return the list of executed job records.
+
+```yaml
+source: ADR-014
+status: active
+acceptance:
+  kind: categorical
+  precondition: A Runner with registered succeeding and failing job functions.
+  action: Call TriggerJob for a succeeding job, a failing job, and an unregistered job name, then call ListJobs.
+  expected: Succeeding job records status "completed", failing job records status "failed", unregistered job returns an error, and ListJobs returns all recorded executions.
+  method: test
+  expected_output: "jobs=2 first=completed second=failed"
+```
+
+REQ-030 The HTTP API server SHALL serve `POST /api/v1/repos/{id}/community/scan`, `POST /api/v1/repos/{id}/playbooks`, `GET /api/v1/opportunities`, `PUT /api/v1/opportunities/{id}/status`, `GET /api/v1/jobs`, and `POST /api/v1/jobs/{name}/run`.
+
+```yaml
+source: ADR-014
+status: active
+acceptance:
+  kind: categorical
+  precondition: API server with registered community, inbox, notifier, and scheduler routes.
+  action: Invoke community scan, playbook generation, global opportunities list, opportunity status update, and job trigger/list endpoints.
+  expected: Endpoints return expected HTTP status codes (200, 400, 404, 502) and persist opportunities and job execution records.
+  method: test
+  expected_output: "inbox_updated=true job_completed=true"
+```
+
+REQ-031 The frontend inbox model SHALL group opportunities by status columns (`new`, `saved`, `drafted`, `submitted`, `dismissed`) and calculate campaign attribution traffic and star deltas from before and after metric snapshots.
+
+```yaml
+source: ADR-014
+status: active
+acceptance:
+  kind: categorical
+  precondition: Array of opportunities across statuses and baseline/post-submission metric snapshots.
+  action: Call groupInboxByStatus and computeCampaignAttribution.
+  expected: Returns opportunities bucketed into the five status arrays and exact deltas for stars, unique views, and unique clones.
+  method: test
+  expected_output: "starsDelta=25 viewsDelta=140"
+```

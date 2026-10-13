@@ -129,3 +129,23 @@ decision: Query GitHub /search/issues using capability profile queries, exclude 
 consequences: Only genuine external matches with actionable integration plans enter the opportunity inbox.
 superseded_by: null
 ```
+
+## ADR-013 Dual-mode community listening and marketing playbook engine
+
+```yaml
+status: resolved
+context: Open-source maintainers need to discover active discussions asking for solutions their project provides across Hacker News, Reddit, Stack Overflow, Dev.to, and Lobsters, and draft non-spammy community launch posts that respect each platform's self-promotion norms.
+decision: Implement a multi-platform community feed scanner and a deterministic marketing playbook generator in internal/engine/community/ producing Opportunity records with community_rules_notes and platform-native drafts.
+consequences: Both inbound community threads and outbound launch playbooks flow into the unified Opportunity inbox.
+superseded_by: null
+```
+
+## ADR-014 Webhook notifications, job scheduler, and campaign attribution inbox
+
+```yaml
+status: resolved
+context: High-relevance opportunities (>= 85) should optionally trigger Slack/Discord webhook alerts, background scans need job status tracking, and submitted posts should be correlated against traffic and star deltas.
+decision: Implement a threshold-gated webhook notifier (internal/engine/notifier/), an in-memory/persisted job runner (internal/scheduler/), unified inbox and scan API endpoints (internal/api/community_handlers.go), and a frontend inbox and attribution calculator (web/src/inbox_model.mjs).
+consequences: Completes the end-to-end discovery, notification, action workflow, and attribution loop.
+superseded_by: null
+```

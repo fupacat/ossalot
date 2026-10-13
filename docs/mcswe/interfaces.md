@@ -15,6 +15,9 @@ This document points to each interface's native definition; it never restates it
 | metrics | `internal/engine/metrics/` |
 | profiler | `internal/engine/profiler/` |
 | discovery | `internal/engine/discovery/` |
+| community | `internal/engine/community/` |
+| notifier | `internal/engine/notifier/` |
+| scheduler | `internal/scheduler/` |
 | api | `internal/api/` |
 | web | `web/src/` |
 
@@ -269,5 +272,65 @@ component: web
 definition: web/src/discovery_model.mjs#filterOpportunities
 requirements: [REQ-025]
 checker: node --check web/src/discovery_model.mjs
+data_schema: null
+```
+
+## IF-026 Multi-platform community scanner
+
+```yaml
+component: community
+definition: internal/engine/community/scanner.go#Scanner.ScanCommunities
+requirements: [REQ-026]
+checker: go vet ./internal/engine/community
+data_schema: internal/db/opportunities_store.go#Opportunity
+```
+
+## IF-027 Outbound marketing playbook generator
+
+```yaml
+component: community
+definition: internal/engine/community/scanner.go#GenerateMarketingPlaybooks
+requirements: [REQ-027]
+checker: go vet ./internal/engine/community
+data_schema: internal/db/opportunities_store.go#Opportunity
+```
+
+## IF-028 High-value opportunity webhook notifier
+
+```yaml
+component: notifier
+definition: internal/engine/notifier/webhook.go#Notifier.NotifyHighValueOpportunity
+requirements: [REQ-028]
+checker: go vet ./internal/engine/notifier
+data_schema: internal/db/opportunities_store.go#Opportunity
+```
+
+## IF-029 Background and on-demand scan job runner
+
+```yaml
+component: scheduler
+definition: internal/scheduler/runner.go#Runner.TriggerJob
+requirements: [REQ-029]
+checker: go vet ./internal/scheduler
+data_schema: internal/scheduler/runner.go#ScanJobRecord
+```
+
+## IF-030 HTTP API community, playbook, inbox, and scheduler endpoints
+
+```yaml
+component: api
+definition: internal/api/community_handlers.go#Server.RegisterCommunityAndInboxRoutes
+requirements: [REQ-030]
+checker: go vet ./internal/api
+data_schema: internal/db/opportunities_store.go#Opportunity
+```
+
+## IF-031 Frontend action inbox and campaign attribution model
+
+```yaml
+component: web
+definition: web/src/inbox_model.mjs#groupInboxByStatus
+requirements: [REQ-031]
+checker: node --check web/src/inbox_model.mjs
 data_schema: null
 ```
