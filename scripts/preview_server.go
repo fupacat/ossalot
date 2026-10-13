@@ -137,6 +137,167 @@ func (t *liveGitHubTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		return jsonHTTPResponse(req, http.StatusOK, searchPayload), nil
 	}
 
+	// Handle 1-click remediation file commit (PUT /repos/{owner}/{repo}/contents/{path})
+	if req.Method == http.MethodPut && strings.Contains(path, "/contents/") {
+		parts := strings.Split(strings.Trim(path, "/"), "/")
+		if len(parts) >= 5 && parts[0] == "repos" && parts[3] == "contents" {
+			owner := parts[1]
+			repo := parts[2]
+			filePath := strings.Join(parts[4:], "/")
+
+			var putBody map[string]any
+			bodyBytes, _ := io.ReadAll(req.Body)
+			_ = json.Unmarshal(bodyBytes, &putBody)
+			branch, _ := putBody["branch"].(string)
+
+			if branch != "" {
+				authHdr := req.Header.Get("Authorization")
+
+				// 1. Get default branch of the repository
+				metaURL := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
+				mReq, _ := http.NewRequestWithContext(req.Context(), http.MethodGet, metaURL, nil)
+				mReq.Header.Set("Authorization", authHdr)
+				mReq.Header.Set("Accept", "application/vnd.github+json")
+				defaultBranch := "main"
+				if mResp, mErr := t.base.RoundTrip(mReq); mErr == nil && mResp.StatusCode == http.StatusOK {
+					var rm struct {
+						DefaultBranch string `json:"default_branch"`
+					}
+					_ = json.NewDecoder(mResp.Body).Decode(&rm)
+					mResp.Body.Close()
+					if rm.DefaultBranch != "" {
+						defaultBranch = rm.DefaultBranch
+					}
+				}
+
+				// 2. Get latest commit SHA of default branch
+				refURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/ref/heads/%s", owner, repo, defaultBranch)
+				rReq, _ := http.NewRequestWithContext(req.Context(), http.MethodGet, refURL, nil)
+				rReq.Header.Set("Authorization", authHdr)
+				rReq.Header.Set("Accept", "application/vnd.github+json")
+				baseSHA := ""
+				if rResp, rErr := t.base.RoundTrip(rReq); rErr == nil && rResp.StatusCode == http.StatusOK {
+					var refData struct {
+						Object struct {
+							SHA string `json:"sha"`
+						} `json:"object"`
+					}
+					_ = json.NewDecoder(rResp.Body).Decode(&refData)
+					rResp.Body.Close()
+					baseSHA = refData.Object.SHA
+				}
+
+				// 3. Ensure branch exists; create if missing
+				bRefURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/ref/heads/%s", owner, repo, branch)
+				bReq, _ := http.NewRequestWithContext(req.Context(), http.MethodGet, bRefURL, nil)
+				bReq.Header.Set("Authorization", authHdr)
+				bReq.Header.Set("Accept", "application/vnd.github+json")
+				if bResp, bErr := t.base.RoundTrip(bReq); bErr == nil {
+					bResp.Body.Close()
+					if bResp.StatusCode == http.StatusNotFound && baseSHA != "" {
+						crURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/refs", owner, repo)
+						crPayload, _ := json.Marshal(map[string]string{
+							"ref": "refs/heads/" + branch,
+							"sha": baseSHA,
+						})
+						crReq, _ := http.NewRequestWithContext(req.Context(), http.MethodPost, crURL, bytes.NewReader(crPayload))
+						crReq.Header.Set("Authorization", authHdr)
+						crReq.Header.Set("Content-Type", "application/json")
+						crReq.Header.Set("Accept", "application/vnd.github+json")
+						if crResp, crErr := t.base.RoundTrip(crReq); crErr == nil {
+							crResp.Body.Close()
+						}
+					}
+				}
+
+				// 4. Check if file already exists on branch, and supply SHA if so
+				fURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s?ref=%s", owner, repo, filePath, url.QueryEscape(branch))
+				fReq, _ := http.NewRequestWithContext(req.Context(), http.MethodGet, fURL, nil)
+				fReq.Header.Set("Authorization", authHdr)
+				fReq.Header.Set("Accept", "application/vnd.github+json")
+				if fResp, fErr := t.base.RoundTrip(fReq); fErr == nil {
+					if fResp.StatusCode == http.StatusOK {
+						var fd struct {
+							SHA string `json:"sha"`
+						}
+						_ = json.NewDecoder(fResp.Body).Decode(&fd)
+						if fd.SHA != "" {
+							putBody["sha"] = fd.SHA
+						}
+					}
+					fResp.Body.Close()
+				}
+
+				newBodyBytes, _ := json.Marshal(putBody)
+				req.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
+				req.ContentLength = int64(len(newBodyBytes))
+			}
+		}
+	}
+
+	// Handle 1-click Pull Request creation (POST /repos/{owner}/{repo}/pulls)
+	if req.Method == http.MethodPost && strings.HasSuffix(path, "/pulls") {
+		parts := strings.Split(strings.Trim(path, "/"), "/")
+		if len(parts) == 4 && parts[0] == "repos" && parts[3] == "pulls" {
+			owner := parts[1]
+			repo := parts[2]
+			authHdr := req.Header.Get("Authorization")
+
+			var prBody map[string]any
+			bodyBytes, _ := io.ReadAll(req.Body)
+			_ = json.Unmarshal(bodyBytes, &prBody)
+			head, _ := prBody["head"].(string)
+
+			// Resolve actual default branch
+			metaURL := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
+			mReq, _ := http.NewRequestWithContext(req.Context(), http.MethodGet, metaURL, nil)
+			mReq.Header.Set("Authorization", authHdr)
+			mReq.Header.Set("Accept", "application/vnd.github+json")
+			if mResp, mErr := t.base.RoundTrip(mReq); mErr == nil && mResp.StatusCode == http.StatusOK {
+				var rm struct {
+					DefaultBranch string `json:"default_branch"`
+				}
+				_ = json.NewDecoder(mResp.Body).Decode(&rm)
+				mResp.Body.Close()
+				if rm.DefaultBranch != "" {
+					prBody["base"] = rm.DefaultBranch
+				}
+			}
+
+			newBodyBytes, _ := json.Marshal(prBody)
+			req.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
+			req.ContentLength = int64(len(newBodyBytes))
+
+			resp, err := t.base.RoundTrip(req)
+			if err == nil && resp.StatusCode == http.StatusUnprocessableEntity {
+				respBody, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if strings.Contains(string(respBody), "A pull request already exists") {
+					// Query and return the existing PR
+					listURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls?head=%s:%s", owner, repo, owner, url.QueryEscape(head))
+					lReq, _ := http.NewRequestWithContext(req.Context(), http.MethodGet, listURL, nil)
+					lReq.Header.Set("Authorization", authHdr)
+					lReq.Header.Set("Accept", "application/vnd.github+json")
+					if lResp, lErr := t.base.RoundTrip(lReq); lErr == nil && lResp.StatusCode == http.StatusOK {
+						var prs []map[string]any
+						_ = json.NewDecoder(lResp.Body).Decode(&prs)
+						lResp.Body.Close()
+						if len(prs) > 0 {
+							return jsonHTTPResponse(req, http.StatusOK, prs[0]), nil
+						}
+					}
+				}
+				return &http.Response{
+					StatusCode: http.StatusUnprocessableEntity,
+					Header:     resp.Header,
+					Body:       io.NopCloser(bytes.NewReader(respBody)),
+					Request:    req,
+				}, nil
+			}
+			return resp, err
+		}
+	}
+
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		return nil, err

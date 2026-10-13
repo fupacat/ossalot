@@ -636,29 +636,67 @@
 
     window.openRemediate = async (checkKey) => {
       const repo = currentRepo();
-      const payload = buildRemediationRequest(checkKey, false);
-      const res = await api(`/api/v1/repos/${repo.id}/remediate`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      const draft = res.draft || {};
-      document.getElementById('modalTitle').textContent = `Remediation: ${draft.file_path || checkKey}`;
-      document.getElementById('modalSubtitle').textContent = `Branch: ${draft.branch_name} • Commit: ${draft.commit_message}`;
-      document.getElementById('modalContent').textContent = draft.content || JSON.stringify(res, null, 2);
-      document.getElementById('modalFooter').innerHTML = `
-        <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200">Copy File</button>
-        ${repo.is_owned ? `<button onclick="createRemediationPR('${checkKey}')" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium">1-Click Open GitHub PR</button>` : ''}
-      `;
+      document.getElementById('modalTitle').textContent = `Loading Remediation for ${checkKey}...`;
+      document.getElementById('modalSubtitle').textContent = 'Generating compliant content and branch coordinates...';
+      document.getElementById('modalContent').textContent = 'Please wait...';
+      document.getElementById('modalFooter').innerHTML = '';
       document.getElementById('modalOverlay').classList.remove('hidden');
+
+      try {
+        const payload = buildRemediationRequest(checkKey, false);
+        const res = await api(`/api/v1/repos/${repo.id}/remediate`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        const draft = res.draft || {};
+        document.getElementById('modalTitle').textContent = `Remediation: ${draft.file_path || checkKey}`;
+        document.getElementById('modalSubtitle').textContent = `Branch: ${draft.branch_name} • Commit: ${draft.commit_message}`;
+        document.getElementById('modalContent').textContent = draft.content || JSON.stringify(res, null, 2);
+        document.getElementById('modalFooter').innerHTML = `
+          <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200">Copy File</button>
+          ${repo.is_owned ? `<button id="createPRBtn" onclick="createRemediationPR('${checkKey}')" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium">1-Click Open GitHub PR</button>` : ''}
+        `;
+      } catch (err) {
+        document.getElementById('modalSubtitle').innerHTML = `<span class="text-rose-400 font-semibold">&cross; ${err.message}</span>`;
+      }
     };
 
     window.createRemediationPR = async (checkKey) => {
       const repo = currentRepo();
-      const res = await api(`/api/v1/repos/${repo.id}/remediate`, {
-        method: 'POST',
-        body: JSON.stringify(buildRemediationRequest(checkKey, true)),
-      });
-      document.getElementById('modalSubtitle').innerHTML = `<span class="text-emerald-400 font-semibold">Pull Request Created: ${res.pr_url || 'Success'}</span>`;
+      const btn = document.getElementById('createPRBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Creating branch, commit & Pull Request on GitHub...';
+      }
+      try {
+        const res = await api(`/api/v1/repos/${repo.id}/remediate`, {
+          method: 'POST',
+          body: JSON.stringify(buildRemediationRequest(checkKey, true)),
+        });
+        if (res.pr_url) {
+          document.getElementById('modalSubtitle').innerHTML = `
+            <div class="mt-2 p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-medium text-xs flex flex-wrap items-center justify-between gap-2">
+              <span>&check; Pull Request Created on GitHub!</span>
+              <a href="${res.pr_url}" target="_blank" rel="noopener" class="underline font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded-lg">View PR on GitHub &nearr;</a>
+            </div>
+          `;
+          if (btn) {
+            btn.outerHTML = `<a href="${res.pr_url}" target="_blank" rel="noopener" class="text-xs px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">Open PR on GitHub &nearr;</a>`;
+          }
+        } else {
+          document.getElementById('modalSubtitle').innerHTML = `<span class="text-emerald-400 font-semibold">Pull Request Created Successfully</span>`;
+        }
+      } catch (err) {
+        document.getElementById('modalSubtitle').innerHTML = `
+          <div class="mt-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium text-xs">
+            &cross; Error creating GitHub PR: ${err.message || 'Check repository permissions'}
+          </div>
+        `;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Retry 1-Click Open GitHub PR';
+        }
+      }
     };
 
     window.showOpportunityDraft = (id) => {
