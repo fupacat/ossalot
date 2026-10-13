@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REPORTS = ROOT / "reports"
-GO_BIN = "/home/eric/.gemini/antigravity/brain/dc8f5867-fc68-42d2-94ac-0a94391363ac/scratch/go/bin/go"
+GO_BIN = shutil.which("go") or "/home/eric/.gemini/antigravity/brain/dc8f5867-fc68-42d2-94ac-0a94391363ac/scratch/go/bin/go"
 
 
 def get_env():
