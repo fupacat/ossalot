@@ -877,6 +877,9 @@
           btn.className = 'tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800';
         }
       });
+      if (tab === 'setup') {
+        window.checkSonarOnboardingNow();
+      }
     };
 
     window.selectRepo = async (id) => {
@@ -1142,10 +1145,28 @@
       const [owner, name] = repo.full_name.includes('/') ? repo.full_name.split('/') : ['owner', repo.name];
       const projectKey = `${owner}_${name}`;
 
-      const [orgRes, compRes] = await Promise.all([
-        fetch(`https://sonarcloud.io/api/organizations/search?organizations=${encodeURIComponent(owner)}`).then(r => r.json()).catch(() => null),
-        fetch(`https://sonarcloud.io/api/navigation/component?component=${encodeURIComponent(projectKey)}`).then(r => r.json()).catch(() => null),
-      ]);
+      const btn = document.querySelector('button[onclick="checkSonarOnboardingNow()"]');
+      if (btn) btn.textContent = 'Checking SonarCloud...';
+
+      let orgRes = null;
+      let compRes = null;
+      try {
+        const [oR, cR] = await Promise.all([
+          fetch(`https://sonarcloud.io/api/organizations/search?organizations=${encodeURIComponent(owner)}`).then(r => r.json()).catch(() => null),
+          fetch(`https://sonarcloud.io/api/components/show?component=${encodeURIComponent(projectKey)}`).then(r => r.json()).catch(() => null),
+        ]);
+        orgRes = oR;
+        compRes = cR && !cR.errors ? cR : null;
+
+        if (!compRes) {
+          const navRes = await fetch(`https://sonarcloud.io/api/navigation/component?component=${encodeURIComponent(projectKey)}`).then(r => r.json()).catch(() => null);
+          if (navRes && !navRes.errors) {
+            compRes = navRes;
+          }
+        }
+      } finally {
+        if (btn) btn.textContent = 'Check Sonar Status for Current Repo';
+      }
 
       state.sonarOnboarding = evaluateSonarOnboarding(repo.full_name, orgRes, compRes);
       render();

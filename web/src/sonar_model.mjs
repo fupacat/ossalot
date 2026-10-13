@@ -11,8 +11,9 @@ export function evaluateSonarOnboarding(repoFullName, orgSearchPayload, compSear
     (o) => o.key && o.key.toLowerCase() === owner.toLowerCase()
   );
 
-  const comp = compSearchPayload && compSearchPayload.component;
-  const projectExists = Boolean(comp && comp.key === projectKey);
+  const comp = compSearchPayload && (compSearchPayload.component || compSearchPayload);
+  const compKey = comp && (comp.key || "");
+  const projectExists = Boolean(compKey && compKey.toLowerCase() === projectKey.toLowerCase());
 
   let status = "not_registered";
   let summary = "";

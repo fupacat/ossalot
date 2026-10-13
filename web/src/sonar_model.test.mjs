@@ -4,7 +4,7 @@ import { evaluateSonarOnboarding } from "./sonar_model.mjs";
 
 // TRACEABILITY_MAPPING: REQ-037
 test("[REQ-037] evaluateSonarOnboarding with registered/unregistered orgs and imported/unimported projects", () => {
-  // 1. Registered and imported project
+  // 1. Registered and imported project (both {component:{key}} and direct {key})
   const imported = evaluateSonarOnboarding(
     "fupacat/tsql-scriptdom-java",
     { organizations: [{ key: "fupacat" }] },
@@ -15,6 +15,14 @@ test("[REQ-037] evaluateSonarOnboarding with registered/unregistered orgs and im
   assert.equal(imported.projectExists, true);
   assert.match(imported.actionURL, /summary\/new_code\?id=fupacat_tsql-scriptdom-java/);
   assert.equal(imported.localCommunityEdition.defaultURL, "http://localhost:9000");
+
+  const importedDirect = evaluateSonarOnboarding(
+    "fupacat/ossalot",
+    { organizations: [{ key: "fupacat" }] },
+    { key: "fupacat_ossalot", name: "ossalot" }
+  );
+  assert.equal(importedDirect.status, "registered_and_imported");
+  assert.equal(importedDirect.projectExists, true);
 
   // 2. Org exists, but project not yet imported
   const notImported = evaluateSonarOnboarding(
