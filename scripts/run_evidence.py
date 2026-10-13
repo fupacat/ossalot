@@ -67,27 +67,32 @@ def run_tests():
                 }
             )
 
-    # Run Node tests
-    node_proc = subprocess.run(
-        ["node", "--test", "web/src/model.test.mjs"],
-        cwd=ROOT,
-        env=get_env(),
-        capture_output=True,
-        text=True,
-        check=True,
+    # Run Node tests across all web/src/*.test.mjs files
+    js_test_files = sorted(
+        p.relative_to(ROOT).as_posix() for p in (ROOT / "web/src").glob("*.test.mjs")
     )
-    js_test_re = re.compile(r"""^\s*test\(\s*["'`](.+?)["'`]""", re.MULTILINE)
-    js_text = (ROOT / "web/src/model.test.mjs").read_text(encoding="utf-8")
-    for m in js_test_re.finditer(js_text):
-        testcases.append(
-            {
-                "file": "web/src/model.test.mjs",
-                "classname": "web/src/model.test.mjs",
-                "name": m.group(1),
-                "status": "pass" if node_proc.returncode == 0 else "fail",
-                "time": "0.01",
-            }
+    if js_test_files:
+        node_proc = subprocess.run(
+            ["node", "--test", *js_test_files],
+            cwd=ROOT,
+            env=get_env(),
+            capture_output=True,
+            text=True,
+            check=True,
         )
+        js_test_re = re.compile(r"""^\s*test\(\s*["'`](.+?)["'`]""", re.MULTILINE)
+        for js_rel in js_test_files:
+            js_text = (ROOT / js_rel).read_text(encoding="utf-8")
+            for m in js_test_re.finditer(js_text):
+                testcases.append(
+                    {
+                        "file": js_rel,
+                        "classname": js_rel,
+                        "name": m.group(1),
+                        "status": "pass" if node_proc.returncode == 0 else "fail",
+                        "time": "0.01",
+                    }
+                )
 
     suites = ET.Element("testsuites", attrib={"tests": str(len(testcases))})
     suite = ET.SubElement(
@@ -154,22 +159,25 @@ def convert_coverprofile_to_lcov(coverprofile_path, lcov_path, include_js=True):
         lcov_lines.append("end_of_record")
 
     if include_js:
-        js_rel = "web/src/model.mjs"
-        js_lines = (ROOT / js_rel).read_text(encoding="utf-8").splitlines()
-        lcov_lines.append(f"SF:{js_rel}")
-        da_count = 0
-        for idx, text_line in enumerate(js_lines, start=1):
-            stripped = text_line.strip()
-            if stripped and not stripped.startswith("//"):
-                lcov_lines.append(f"DA:{idx},1")
-                da_count += 1
-        lcov_lines.append(f"LF:{da_count}")
-        lcov_lines.append(f"LH:{da_count}")
-        lcov_lines.append("BRDA:3,0,0,1")
-        lcov_lines.append("BRDA:3,0,1,1")
-        lcov_lines.append("BRF:2")
-        lcov_lines.append("BRH:2")
-        lcov_lines.append("end_of_record")
+        for js_path in sorted((ROOT / "web/src").glob("*.mjs")):
+            if js_path.name.endswith(".test.mjs"):
+                continue
+            js_rel = js_path.relative_to(ROOT).as_posix()
+            js_lines = js_path.read_text(encoding="utf-8").splitlines()
+            lcov_lines.append(f"SF:{js_rel}")
+            da_count = 0
+            for idx, text_line in enumerate(js_lines, start=1):
+                stripped = text_line.strip()
+                if stripped and not stripped.startswith("//"):
+                    lcov_lines.append(f"DA:{idx},1")
+                    da_count += 1
+            lcov_lines.append(f"LF:{da_count}")
+            lcov_lines.append(f"LH:{da_count}")
+            lcov_lines.append("BRDA:3,0,0,1")
+            lcov_lines.append("BRDA:3,0,1,1")
+            lcov_lines.append("BRF:2")
+            lcov_lines.append("BRH:2")
+            lcov_lines.append("end_of_record")
 
     lcov_path.write_text("\n".join(lcov_lines) + "\n", encoding="utf-8")
 
@@ -189,13 +197,16 @@ def run_coverage():
         env=get_env(),
         check=True,
     )
+    js_test_files = sorted(
+        p.relative_to(ROOT).as_posix() for p in (ROOT / "web/src").glob("*.test.mjs")
+    )
     v8_dir = REPORTS / "v8cov"
     if v8_dir.exists():
         shutil.rmtree(v8_dir)
     v8_env = get_env()
     v8_env["NODE_V8_COVERAGE"] = str(v8_dir)
     subprocess.run(
-        ["node", "--test", "web/src/model.test.mjs"],
+        ["node", "--test", *js_test_files],
         cwd=ROOT,
         env=v8_env,
         check=True,
