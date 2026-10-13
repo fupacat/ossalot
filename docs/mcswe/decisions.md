@@ -149,3 +149,14 @@ decision: Implement a threshold-gated webhook notifier (internal/engine/notifier
 consequences: Completes the end-to-end discovery, notification, action workflow, and attribution loop.
 superseded_by: null
 ```
+
+## ADR-015 Automated CI and test deployment pipeline
+
+```yaml
+status: resolved
+context: To minimize manual interventions and maintain rapid iteration, every push and pull request must automatically run the full MCSWE test and coverage evidence suite and build deployable distribution artifacts for the test environment.
+decision: Define a GitHub Actions workflow in .github/workflows/ci.yml that checks out the repository, installs Go and Node.js dependencies, verifies MCSWE evidence (test and 100% coverage), builds the single-binary OSSAlot executable, and publishes the test release artifact.
+consequences: Regressions are detected automatically on PRs and pushes; test environment binaries are built deterministically in CI without manual local intervention.
+superseded_by: null
+```
+

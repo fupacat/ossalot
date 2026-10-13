@@ -334,3 +334,14 @@ requirements: [REQ-031]
 checker: node --check web/src/inbox_model.mjs
 data_schema: null
 ```
+
+## IF-032 Continuous integration and test deployment workflow
+
+```yaml
+component: cli
+definition: .github/workflows/ci.yml
+requirements: [REQ-032]
+checker: python3 scripts/run_evidence.py test
+data_schema: null
+```
+

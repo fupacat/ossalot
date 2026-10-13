@@ -435,3 +435,18 @@ acceptance:
   method: test
   expected_output: "starsDelta=25 viewsDelta=140"
 ```
+
+REQ-032 The continuous integration workflow SHALL execute on pushes and pull requests to validate MCSWE test and coverage evidence and compile the single-binary test distribution executable.
+
+```yaml
+source: ADR-015
+status: active
+acceptance:
+  kind: categorical
+  precondition: A GitHub Actions runner environment with Go 1.22+ and Node.js 20+.
+  action: Execute python3 scripts/run_evidence.py test, python3 scripts/run_evidence.py coverage, and go build ./cmd/ossalot.
+  expected: All tests pass, statement coverage report generates at 100%, and the ossalot test binary builds without compilation errors.
+  method: test
+  expected_output: "coverage: 100.0% of statements"
+```
+
