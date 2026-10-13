@@ -51,3 +51,20 @@ test("[REQ-037] evaluateSonarOnboarding with registered/unregistered orgs and im
   assert.equal(fallback.owner, "owner");
   assert.equal(fallback.status, "not_registered");
 });
+
+// TRACEABILITY_MAPPING: REQ-038
+test("[REQ-038] evaluateSonarOnboarding returns SonarCloud token and GitHub SONAR_TOKEN secret links", () => {
+  const result = evaluateSonarOnboarding(
+    "fupacat/ossalot",
+    { organizations: [{ key: "fupacat" }] },
+    { key: "fupacat_ossalot" }
+  );
+  assert.equal(result.tokenURL, "https://sonarcloud.io/account/security");
+  assert.equal(result.secretURL, "https://github.com/fupacat/ossalot/settings/secrets/actions/new");
+  assert.equal(result.secretName, "SONAR_TOKEN");
+
+  // Links are produced for every status, not only after import
+  const unregistered = evaluateSonarOnboarding("newuser/newrepo", { organizations: [] }, null);
+  assert.equal(unregistered.tokenURL, "https://sonarcloud.io/account/security");
+  assert.equal(unregistered.secretURL, "https://github.com/newuser/newrepo/settings/secrets/actions/new");
+});
