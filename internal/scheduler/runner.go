@@ -2,7 +2,10 @@ package scheduler
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
+	"time"
 )
 
 // TRACEABILITY_MAPPING: REQ-029
@@ -27,20 +30,54 @@ type Runner struct {
 
 // TRACEABILITY_MAPPING: REQ-029
 func NewRunner() *Runner {
-	panic("stub: REQ-029 not yet implemented")
+	return &Runner{
+		jobs:    map[string]JobFunc{},
+		history: []ScanJobRecord{},
+		nextSeq: 1,
+	}
 }
 
 // TRACEABILITY_MAPPING: REQ-029
 func (r *Runner) RegisterJob(name string, fn JobFunc) {
-	panic("stub: REQ-029 not yet implemented")
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.jobs[name] = fn
 }
 
 // TRACEABILITY_MAPPING: REQ-029
 func (r *Runner) TriggerJob(ctx context.Context, name string) (ScanJobRecord, error) {
-	panic("stub: REQ-029 not yet implemented")
+	r.mu.Lock()
+	fn, ok := r.jobs[name]
+	r.mu.Unlock()
+	if !ok {
+		return ScanJobRecord{}, errors.New("job not registered: " + name)
+	}
+
+	err := fn(ctx)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	rec := ScanJobRecord{
+		ID:         fmt.Sprintf("job-%d", r.nextSeq),
+		JobName:    name,
+		Status:     "completed",
+		Details:    "ok",
+		ExecutedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	r.nextSeq++
+	if err != nil {
+		rec.Status = "failed"
+		rec.Details = err.Error()
+	}
+	r.history = append(r.history, rec)
+	return rec, err
 }
 
 // TRACEABILITY_MAPPING: REQ-029
 func (r *Runner) ListJobs() []ScanJobRecord {
-	panic("stub: REQ-029 not yet implemented")
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]ScanJobRecord, len(r.history))
+	copy(out, r.history)
+	return out
 }
