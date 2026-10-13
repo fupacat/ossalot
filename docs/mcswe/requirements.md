@@ -183,3 +183,87 @@ acceptance:
   method: test
   expected_output: "totalRepos=2 avgStandardsScore=80 ownedRepos=1"
 ```
+
+REQ-014 The database store SHALL upsert and list date-keyed `MetricSnapshot` records (`YYYY-MM-DD`) in chronological order for a repository and update the repository's `adoption_score`.
+
+```yaml
+source: ADR-009
+status: active
+acceptance:
+  kind: categorical
+  precondition: An initialized store containing a repository record.
+  action: Call UpsertMetricSnapshot with two dates and a duplicate date update, then call ListMetricSnapshots.
+  expected: Snapshots are deduplicated by (repo_id, snapshot_date) and returned sorted chronologically by snapshot_date ascending.
+  method: test
+  expected_output: "snapshots=2 latest_clones=25"
+```
+
+REQ-015 The GitHub client SHALL fetch 14-day repository traffic views, clones, and popular referrers from `/repos/{owner}/{repo}/traffic/views`, `/traffic/clones`, and `/traffic/popular/referrers`.
+
+```yaml
+source: ADR-009
+status: active
+acceptance:
+  kind: categorical
+  precondition: Mock GitHub REST endpoints serving traffic views, clones, and referrers JSON responses.
+  action: Call FetchTrafficSnapshot on the GitHub client.
+  expected: Returns TrafficSnapshot populated with total/unique views, total/unique clones, and referrer items.
+  method: test
+  expected_output: "views=120 clones=35 referrers=2"
+```
+
+REQ-016 The package registry client SHALL query download counts for configured package coordinates (`npm`, `pypi`, `crates`, `homebrew`) from the configured registry base URL and return a map of ecosystem download counts.
+
+```yaml
+source: ADR-009
+status: active
+acceptance:
+  kind: categorical
+  precondition: Mock HTTP registry server serving download count payloads for npm, pypi, crates, and homebrew.
+  action: Call FetchDownloads with a map of package coordinates.
+  expected: Returns download counts per ecosystem key matching the upstream responses.
+  method: test
+  expected_output: "npm=1500 pypi=800"
+```
+
+REQ-017 The metrics collector SHALL combine repository engagement counts, GitHub traffic data, and package registry downloads into a `MetricSnapshot` with a bounded `adoption_score` between 0 and 100 inclusive.
+
+```yaml
+source: ADR-009
+status: active
+acceptance:
+  kind: categorical
+  precondition: Repository metadata, GitHub traffic snapshot, and package registry download map.
+  action: Call BuildDailySnapshot for low-adoption and high-adoption repository inputs.
+  expected: Produces a MetricSnapshot with aggregated registry downloads, referrers, and an adoption_score in [0, 100].
+  method: test
+  expected_output: "score_bounded=true"
+```
+
+REQ-018 The HTTP API server SHALL serve `POST /api/v1/repos/{id}/metrics/collect` and `GET /api/v1/repos/{id}/metrics` to trigger snapshot collection and retrieve historical metric snapshots for a repository.
+
+```yaml
+source: ADR-009
+status: active
+acceptance:
+  kind: categorical
+  precondition: API server with registered metrics routes, a stored repository, and mock GitHub/registry servers.
+  action: Send POST /api/v1/repos/{id}/metrics/collect followed by GET /api/v1/repos/{id}/metrics.
+  expected: POST returns 200 with the collected MetricSnapshot and GET returns 200 with the chronological slice of snapshots.
+  method: test
+  expected_output: "collected=1 listed=1"
+```
+
+REQ-019 The frontend metrics model SHALL transform snapshot arrays into chronologically sorted chart series and aggregate referrer totals sorted by visit count descending.
+
+```yaml
+source: ADR-010
+status: active
+acceptance:
+  kind: categorical
+  precondition: Unordered array of metric snapshot objects containing views, clones, stars, registry downloads, and referrers.
+  action: Call buildTrafficSeries and aggregateReferrers.
+  expected: Returns chronologically ordered series with summed registry downloads and deduplicated referrers sorted by count descending.
+  method: test
+  expected_output: "series=2 topReferrer=news.ycombinator.com"
+```

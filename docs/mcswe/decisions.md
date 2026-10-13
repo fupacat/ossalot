@@ -89,3 +89,23 @@ decision: Implement a modular frontend domain model in web/src/model.mjs that co
 consequences: Frontend logic is testable in isolation under Node's test runner with 100% line and branch coverage.
 superseded_by: null
 ```
+
+## ADR-009 Daily metric snapshots and 14-day GitHub traffic persistence
+
+```yaml
+status: resolved
+context: GitHub's traffic API only retains views, clones, and top referrers for 14 days, so historical adoption trends are lost unless archived into daily snapshots alongside package registry download counts.
+decision: Persist date-keyed MetricSnapshot records per repository (YYYY-MM-DD) storing stars, forks, watchers, open issues, views, unique views, clones, unique clones, top referrers, registry downloads across ecosystems (npm, pypi, crates, homebrew, docker, golang), and a composite 0-100 adoption score.
+consequences: Repeat collections on the same UTC date upsert the daily snapshot idempotently while preserving multi-month traffic and download history beyond GitHub's 14-day window.
+superseded_by: null
+```
+
+## ADR-010 Frontend time-series chart and referrer attribution model
+
+```yaml
+status: resolved
+context: The Repo Detail view requires chronologically ordered time-series points for Recharts and aggregated referrer traffic totals across snapshot windows.
+decision: Provide pure functions in web/src/metrics_model.mjs to sort and project daily metric snapshots into chart series and to sum referrer counts and unique visitors across snapshots.
+consequences: Time-series transformation and referrer aggregation are deterministic and verifiable under Node's test runner.
+superseded_by: null
+```

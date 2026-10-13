@@ -12,6 +12,7 @@ This document points to each interface's native definition; it never restates it
 | github | `internal/github/` |
 | llm | `internal/llm/` |
 | standards | `internal/engine/standards/` |
+| metrics | `internal/engine/metrics/` |
 | api | `internal/api/` |
 | web | `web/src/` |
 
@@ -146,5 +147,65 @@ component: web
 definition: web/src/model.mjs#summarizePortfolio
 requirements: [REQ-013]
 checker: node --check web/src/model.mjs
+data_schema: null
+```
+
+## IF-014 Metric snapshot persistence
+
+```yaml
+component: db
+definition: internal/db/metrics_store.go#Store.UpsertMetricSnapshot
+requirements: [REQ-014]
+checker: go vet ./internal/db
+data_schema: internal/db/metrics_store.go#MetricSnapshot
+```
+
+## IF-015 GitHub 14-day traffic inspector
+
+```yaml
+component: github
+definition: internal/github/traffic.go#Client.FetchTrafficSnapshot
+requirements: [REQ-015]
+checker: go vet ./internal/github
+data_schema: internal/github/traffic.go#TrafficSnapshot
+```
+
+## IF-016 Package registry download connector
+
+```yaml
+component: metrics
+definition: internal/engine/metrics/collector.go#RegistryClient.FetchDownloads
+requirements: [REQ-016]
+checker: go vet ./internal/engine/metrics
+data_schema: null
+```
+
+## IF-017 Daily metric snapshot builder and adoption scorer
+
+```yaml
+component: metrics
+definition: internal/engine/metrics/collector.go#BuildDailySnapshot
+requirements: [REQ-017]
+checker: go vet ./internal/engine/metrics
+data_schema: internal/db/metrics_store.go#MetricSnapshot
+```
+
+## IF-018 HTTP API metrics collection and time-series endpoints
+
+```yaml
+component: api
+definition: internal/api/metrics_handlers.go#Server.RegisterMetricsRoutes
+requirements: [REQ-018]
+checker: go vet ./internal/api
+data_schema: internal/db/metrics_store.go#MetricSnapshot
+```
+
+## IF-019 Frontend time-series and referrer attribution model
+
+```yaml
+component: web
+definition: web/src/metrics_model.mjs#buildTrafficSeries
+requirements: [REQ-019]
+checker: node --check web/src/metrics_model.mjs
 data_schema: null
 ```
