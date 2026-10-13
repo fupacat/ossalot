@@ -267,3 +267,87 @@ acceptance:
   method: test
   expected_output: "series=2 topReferrer=news.ycombinator.com"
 ```
+
+REQ-020 The database store SHALL upsert and retrieve `CapabilityProfile` records by `repo_id` and upsert, list, and update status for `Opportunity` records deduplicated by `external_id`.
+
+```yaml
+source: ADR-011
+status: active
+acceptance:
+  kind: categorical
+  precondition: An initialized store containing a repository record.
+  action: Save and retrieve a CapabilityProfile, upsert duplicate Opportunity records by external_id, list opportunities, and update an opportunity status.
+  expected: CapabilityProfile is persisted and retrieved, opportunities are deduplicated by external_id, and status updates persist with submitted_url and outcome_notes.
+  method: test
+  expected_output: "profile_found=true opps=1 status=submitted"
+```
+
+REQ-021 The capability profiler SHALL synthesize a `CapabilityProfile` containing summary, problem statements, target personas, ecosystem keywords, search queries, and recommended communities from a repository and its README content.
+
+```yaml
+source: ADR-011
+status: active
+acceptance:
+  kind: categorical
+  precondition: Repository metadata with primary language, topics, description, and README content.
+  action: Call BuildCapabilityProfile on repositories with and without explicit topics.
+  expected: Returns CapabilityProfile with non-empty problem statements, search queries, and language-mapped recommended communities.
+  method: test
+  expected_output: "queries_non_empty=true"
+```
+
+REQ-022 The GitHub client SHALL query `/search/issues` with a search query string and return a slice of `IssueCandidate` items with repository full name, issue number, title, body, HTML URL, and author login.
+
+```yaml
+source: ADR-012
+status: active
+acceptance:
+  kind: categorical
+  precondition: Mock GitHub REST server serving /search/issues responses.
+  action: Call SearchIssues with a query string.
+  expected: Returns parsed IssueCandidate records with extracted target repository full name and issue metadata.
+  method: test
+  expected_output: "candidates=1 repo=acme/webapp"
+```
+
+REQ-023 The opportunity discovery engine SHALL score `IssueCandidate` items against a `CapabilityProfile`, filter out candidates from the same repository or scoring below 70, and populate `legitimacy_reason`, `pr_implementation_plan`, and `draft_body` on retained opportunities.
+
+```yaml
+source: ADR-012
+status: active
+acceptance:
+  kind: categorical
+  precondition: CapabilityProfile for a source repository and candidate issues including a self-repo issue, a low-relevance issue, and a high-relevance external issue.
+  action: Call ScoreAndFilterCandidates on the candidate list.
+  expected: Self-repo and low-relevance candidates are excluded; high-relevance candidate is returned with relevance_score >= 70 and non-empty pr_implementation_plan.
+  method: test
+  expected_output: "retained=1 score_gte_70=true"
+```
+
+REQ-024 The HTTP API server SHALL serve `POST /api/v1/repos/{id}/profile`, `GET /api/v1/repos/{id}/profile`, `POST /api/v1/repos/{id}/discover`, and `GET /api/v1/repos/{id}/opportunities` for capability profiling and issue opportunity discovery.
+
+```yaml
+source: ADR-012
+status: active
+acceptance:
+  kind: categorical
+  precondition: API server with registered discovery routes, a stored repository, and a mock GitHub search server.
+  action: Call POST and GET on /profile, then POST /discover and GET /opportunities.
+  expected: Profile is generated and returned with HTTP 200, and discovered opportunities scoring >= 70 are persisted and returned with HTTP 200.
+  method: test
+  expected_output: "profile_ok=true discovered=1"
+```
+
+REQ-025 The frontend discovery model SHALL filter opportunities by minimum score, category, and status, sort them by `relevance_score` descending, and format PR implementation plan summaries.
+
+```yaml
+source: ADR-012
+status: active
+acceptance:
+  kind: categorical
+  precondition: Array of opportunity objects with varying scores, categories, statuses, and PR plans.
+  action: Call filterOpportunities and formatPRPlanSummary.
+  expected: Returns matching opportunities ordered by relevance_score descending and a structured plan summary object.
+  method: test
+  expected_output: "filtered=1 topScore=92"
+```

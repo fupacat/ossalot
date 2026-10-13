@@ -109,3 +109,23 @@ decision: Provide pure functions in web/src/metrics_model.mjs to sort and projec
 consequences: Time-series transformation and referrer aggregation are deterministic and verifiable under Node's test runner.
 superseded_by: null
 ```
+
+## ADR-011 Repository capability profiling and opportunity store
+
+```yaml
+status: resolved
+context: Keyword-only search produces noisy, low-value matches; OSSAlot needs a structured CapabilityProfile per repository and a deduplicated Opportunity store.
+decision: Extract a structured CapabilityProfile (summary, problem statements, target personas, ecosystem keywords, search queries, recommended communities) from repository metadata and README content, and persist profiles and deduplicated Opportunity records keyed by external_id.
+consequences: Enables targeted GitHub issue discovery and community listening without duplicate inbox entries.
+superseded_by: null
+```
+
+## ADR-012 Relevance-gated GitHub opportunity discovery and PR plan synthesis
+
+```yaml
+status: resolved
+context: Suggesting a library on tangential GitHub issues is spammy; maintainers need high-signal matches (>= 70 relevance) with a concrete PR implementation plan.
+decision: Query GitHub /search/issues using capability profile queries, exclude issues belonging to the source repository itself, score relevance on a 0-100 scale, retain only matches scoring >= 70, and synthesize a PRImplementationPlan and technical draft comment.
+consequences: Only genuine external matches with actionable integration plans enter the opportunity inbox.
+superseded_by: null
+```

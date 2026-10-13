@@ -13,6 +13,8 @@ This document points to each interface's native definition; it never restates it
 | llm | `internal/llm/` |
 | standards | `internal/engine/standards/` |
 | metrics | `internal/engine/metrics/` |
+| profiler | `internal/engine/profiler/` |
+| discovery | `internal/engine/discovery/` |
 | api | `internal/api/` |
 | web | `web/src/` |
 
@@ -207,5 +209,65 @@ component: web
 definition: web/src/metrics_model.mjs#buildTrafficSeries
 requirements: [REQ-019]
 checker: node --check web/src/metrics_model.mjs
+data_schema: null
+```
+
+## IF-020 Capability profile and opportunity persistence
+
+```yaml
+component: db
+definition: internal/db/opportunities_store.go#Store.SaveCapabilityProfile
+requirements: [REQ-020]
+checker: go vet ./internal/db
+data_schema: internal/db/opportunities_store.go#Opportunity
+```
+
+## IF-021 Repository capability profiler
+
+```yaml
+component: profiler
+definition: internal/engine/profiler/profiler.go#BuildCapabilityProfile
+requirements: [REQ-021]
+checker: go vet ./internal/engine/profiler
+data_schema: internal/db/opportunities_store.go#CapabilityProfile
+```
+
+## IF-022 GitHub issue candidate search client
+
+```yaml
+component: github
+definition: internal/github/search.go#Client.SearchIssues
+requirements: [REQ-022]
+checker: go vet ./internal/github
+data_schema: internal/github/search.go#IssueCandidate
+```
+
+## IF-023 Opportunity relevance scorer and PR plan generator
+
+```yaml
+component: discovery
+definition: internal/engine/discovery/finder.go#ScoreAndFilterCandidates
+requirements: [REQ-023]
+checker: go vet ./internal/engine/discovery
+data_schema: internal/db/opportunities_store.go#Opportunity
+```
+
+## IF-024 HTTP API capability profile and opportunity discovery endpoints
+
+```yaml
+component: api
+definition: internal/api/discovery_handlers.go#Server.RegisterDiscoveryRoutes
+requirements: [REQ-024]
+checker: go vet ./internal/api
+data_schema: internal/db/opportunities_store.go#Opportunity
+```
+
+## IF-025 Frontend opportunity filter and PR plan model
+
+```yaml
+component: web
+definition: web/src/discovery_model.mjs#filterOpportunities
+requirements: [REQ-025]
+checker: node --check web/src/discovery_model.mjs
 data_schema: null
 ```
