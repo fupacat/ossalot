@@ -190,4 +190,15 @@ consequences: Maintains consistent code formatting, drift prevention, and agent-
 superseded_by: null
 ```
 
+## ADR-019 Automated SonarCloud onboarding detection, registration deep-links, and local Community Edition guide
+
+```yaml
+status: resolved
+context: Setting up SonarQube/SonarCloud can be daunting for maintainers. OSSAlot should detect if the repository owner already has a SonarCloud organization, whether the project has been imported, offer direct GitHub OAuth registration/import links for public projects, and generate turnkey Docker instructions for local Community Edition instances.
+decision: Implement SonarCloud onboarding inspection functions in web/src/sonar_model.mjs that parse organization and component status payloads, compute registration and project creation deep-links, and output Docker instructions for local SonarQube Community Edition.
+consequences: Streamlines static analysis setup for both free cloud users and self-hosted on-premises users.
+superseded_by: null
+```
+
+
 

@@ -506,4 +506,19 @@ acceptance:
   expected_output: "files_count=3 has_editorconfig=true"
 ```
 
+REQ-037 The frontend sonar onboarding model SHALL evaluate SonarCloud organization and project existence, produce GitHub registration/import deep-links for public repositories, and generate local Community Edition setup instructions.
+
+```yaml
+source: ADR-019
+status: active
+acceptance:
+  kind: categorical
+  precondition: Repository coordinates, organization search response, and component search response.
+  action: Call evaluateSonarOnboarding with registered/unregistered orgs and imported/unimported projects.
+  expected: Returns correct onboarding status (registered_and_imported, registered_not_imported, not_registered), registration deep-links, and local CE docker instructions.
+  method: test
+  expected_output: "status=registered_and_imported has_ce_guide=true"
+```
+
+
 

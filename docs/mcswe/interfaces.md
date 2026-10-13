@@ -385,4 +385,15 @@ checker: node --check web/src/hygiene_model.mjs
 data_schema: null
 ```
 
+## IF-037 SonarCloud onboarding and local Community Edition guide
+
+```yaml
+component: web
+definition: web/src/sonar_model.mjs#evaluateSonarOnboarding
+requirements: [REQ-037]
+checker: node --check web/src/sonar_model.mjs
+data_schema: null
+```
+
+
 
