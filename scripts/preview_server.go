@@ -231,6 +231,15 @@ func (t *liveGitHubTransport) RoundTrip(req *http.Request) (*http.Response, erro
 				newBodyBytes, _ := json.Marshal(putBody)
 				req.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
 				req.ContentLength = int64(len(newBodyBytes))
+
+				resp, err := t.base.RoundTrip(req)
+				if err == nil && resp.StatusCode == http.StatusNotFound && strings.Contains(filePath, ".github/workflows") {
+					resp.Body.Close()
+					return jsonHTTPResponse(req, http.StatusForbidden, map[string]string{
+						"error": "GitHub requires the 'workflow' OAuth scope to create/edit files in .github/workflows/. You can copy the generated file below, or grant 'workflow' scope via 'gh auth refresh -s workflow'.",
+					}), nil
+				}
+				return resp, err
 			}
 		}
 	}
@@ -618,6 +627,114 @@ func main() {
 	})
 
 	rootMux := http.NewServeMux()
+	rootMux.HandleFunc("POST /api/v1/repos/{id}/remediate", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := store.GetRepository(r.PathValue("id"))
+		if !ok {
+			http.Error(w, `{"error":"repository not found"}`, http.StatusNotFound)
+			return
+		}
+		var reqPayload struct {
+			CheckKey string `json:"check_key"`
+			CreatePR bool   `json:"create_pr"`
+		}
+		bodyBytes, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(bodyBytes, &reqPayload)
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+		if reqPayload.CheckKey == "openssf_scorecard" || reqPayload.CheckKey == "release_automation" {
+			filePath := ".github/workflows/scorecard.yml"
+			content := `# OpenSSF Scorecard Workflow
+name: Scorecard supply-chain security
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: '30 1 * * 6'
+  push:
+    branches: [ "main", "master" ]
+permissions: read-all
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+      - name: "Run analysis"
+        uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+`
+			if reqPayload.CheckKey == "release_automation" {
+				filePath = ".github/workflows/release.yml"
+				content = `# Automated Release Workflow
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: write
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+`
+			}
+			draft := map[string]any{
+				"check_key":      reqPayload.CheckKey,
+				"file_path":      filePath,
+				"branch_name":    fmt.Sprintf("ossalot/remediate-%s", reqPayload.CheckKey),
+				"commit_message": fmt.Sprintf("ci: add %s via OSSAlot remediation", filePath),
+				"pr_title":       fmt.Sprintf("chore(oss): add %s to improve OSS standards compliance", filePath),
+				"pr_body":        fmt.Sprintf("Automated OSS standards remediation for `%s` on `%s`.", reqPayload.CheckKey, repo.FullName),
+				"content":        content,
+			}
+			prURL := ""
+			if reqPayload.CreatePR {
+				settings := store.GetSettingsRaw()
+				var prErr error
+				prURL, prErr = ghClient.CreateRemediationPR(r.Context(), settings.GitHubToken, github.PullRequestRequest{
+					Owner:         repo.Owner,
+					Repo:          repo.Name,
+					IsOwned:       repo.IsOwned,
+					BaseBranch:    "main",
+					NewBranch:     fmt.Sprintf("ossalot/remediate-%s", reqPayload.CheckKey),
+					FilePath:      filePath,
+					FileContent:   content,
+					CommitMessage: fmt.Sprintf("ci: add %s via OSSAlot remediation", filePath),
+					PRTitle:       fmt.Sprintf("chore(oss): add %s to improve OSS standards compliance", filePath),
+					PRBody:        fmt.Sprintf("Automated OSS standards remediation for `%s` on `%s`.", reqPayload.CheckKey, repo.FullName),
+				})
+				if prErr != nil {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusForbidden)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": prErr.Error()})
+					return
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"draft":  draft,
+				"pr_url": prURL,
+			})
+			return
+		}
+
+		apiSrv.ServeHTTP(w, r)
+	})
 	rootMux.Handle("/api/", apiSrv)
 	rootMux.Handle("/src/", http.StripPrefix("/src/", http.FileServer(http.Dir("web/src"))))
 	rootMux.Handle("/", http.FileServer(http.Dir("web/dist")))
