@@ -249,6 +249,21 @@
             </div>
           </form>
         </div>
+
+        <!-- SonarCloud Onboarding & Local CE Assistant (ADR-019, REQ-037) -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3 mt-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+            <div>
+              <h3 class="text-sm font-semibold text-white">SonarQube &amp; SonarCloud Smart Onboarding</h3>
+              <p class="text-xs text-slate-400">Automated check for existing Sonar accounts, registration links for open-source, and local CE container setup.</p>
+            </div>
+            <button onclick="checkSonarOnboardingNow()" class="bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 text-xs font-medium px-3 py-1 rounded-lg transition">Check Sonar Status for Current Repo</button>
+          </div>
+
+          <div id="sonarOnboardingResults" class="space-y-3 text-xs">
+            <p class="text-slate-400">Select a repository and tap "Check Sonar Status" to run live detection.</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -393,6 +408,7 @@
     import { evaluateSetupCapabilities, computeSetupProgress } from '/src/setup_model.mjs';
     import { PIPELINE_TEMPLATES, generatePipelineWorkflow } from '/src/pipeline_model.mjs';
     import { generateHygieneConfigs } from '/src/hygiene_model.mjs';
+    import { evaluateSonarOnboarding } from '/src/sonar_model.mjs';
 
     let state = {
       repos: [],
@@ -404,6 +420,7 @@
       settings: {},
       inboxStatusFilter: 'new',
       selectedPipelineType: 'sonar_analysis',
+      sonarOnboarding: null,
     };
 
     async function api(path, options = {}) {
@@ -765,6 +782,46 @@
       document.getElementById('setupLlmKey').value = state.settings.llm_api_key || '';
       document.getElementById('setupSlackUrl').value = state.settings.slack_webhook_url || '';
 
+      // Render Sonar Onboarding (REQ-037)
+      const sonarEl = document.getElementById('sonarOnboardingResults');
+      if (state.sonarOnboarding) {
+        const so = state.sonarOnboarding;
+        const isReady = so.status === 'registered_and_imported';
+        const isOrgOnly = so.status === 'registered_not_imported';
+        sonarEl.innerHTML = `
+          <div class="p-3.5 rounded-xl border ${isReady ? 'bg-emerald-500/10 border-emerald-500/30' : isOrgOnly ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-amber-500/10 border-amber-500/30'} space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white text-xs">${so.repo} &bull; ${so.projectKey}</span>
+              <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded ${isReady ? 'bg-emerald-500/20 text-emerald-300' : 'bg-indigo-500/20 text-indigo-300'}">${so.status.replace(/_/g, ' ')}</span>
+            </div>
+            <p class="text-slate-300">${so.summary}</p>
+            <div class="flex items-center gap-2 pt-1 flex-wrap">
+              <a href="${so.actionURL}" target="_blank" rel="noopener" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold inline-flex items-center gap-1">${so.actionLabel} &nearr;</a>
+              ${so.projectExists ? `<img src="https://sonarcloud.io/api/project_badges/measure?project=${so.projectKey}&metric=alert_status" alt="Sonar Quality Gate" class="h-6" />` : ''}
+            </div>
+          </div>
+
+          <!-- Local Community Edition Box -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-slate-200">${so.localCommunityEdition.title}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">Zero Cloud Setup</span>
+            </div>
+            <p class="text-[11px] text-slate-400">${so.localCommunityEdition.description}</p>
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-400 uppercase font-semibold">1. Start Local Container:</span>
+              <pre class="bg-slate-950 p-2 rounded text-[11px] text-emerald-300 font-mono overflow-x-auto whitespace-pre">${so.localCommunityEdition.dockerCommand}</pre>
+            </div>
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-400 uppercase font-semibold">2. Scan from Terminal:</span>
+              <pre class="bg-slate-950 p-2 rounded text-[11px] text-indigo-300 font-mono overflow-x-auto whitespace-pre">${so.localCommunityEdition.localScanHint}</pre>
+            </div>
+          </div>
+        `;
+      } else {
+        sonarEl.innerHTML = `<p class="text-slate-400">Select a repository above and tap "Check Sonar Status for Current Repo" to run live detection.</p>`;
+      }
+
       // Render Pipelines (REQ-035)
       const pipelineTypes = Object.keys(PIPELINE_TEMPLATES);
       document.getElementById('pipelineTemplatesList').innerHTML = pipelineTypes.map(t => {
@@ -1077,6 +1134,21 @@
         <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium">Copy All Hygiene Files</button>
       `;
       document.getElementById('modalOverlay').classList.remove('hidden');
+    };
+
+    window.checkSonarOnboardingNow = async () => {
+      const repo = currentRepo();
+      if (!repo) return;
+      const [owner, name] = repo.full_name.includes('/') ? repo.full_name.split('/') : ['owner', repo.name];
+      const projectKey = `${owner}_${name}`;
+
+      const [orgRes, compRes] = await Promise.all([
+        fetch(`https://sonarcloud.io/api/organizations/search?organizations=${encodeURIComponent(owner)}`).then(r => r.json()).catch(() => null),
+        fetch(`https://sonarcloud.io/api/navigation/component?component=${encodeURIComponent(projectKey)}`).then(r => r.json()).catch(() => null),
+      ]);
+
+      state.sonarOnboarding = evaluateSonarOnboarding(repo.full_name, orgRes, compRes);
+      render();
     };
 
     window.runScheduledJob = async (name) => {
