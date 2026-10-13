@@ -34,8 +34,44 @@ def map_go_tests_to_files():
     return mapping
 
 
+def run_node_file_junit(js_rel):
+    """Run one Node test file with the built-in junit reporter and return its real per-test results."""
+    out_dir = REPORTS / "js"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / (js_rel.replace("/", "_") + ".xml")
+    out_file.unlink(missing_ok=True)
+    subprocess.run(
+        [
+            "node",
+            "--test",
+            "--test-reporter=junit",
+            f"--test-reporter-destination={out_file}",
+            js_rel,
+        ],
+        cwd=ROOT,
+        env=get_env(),
+        capture_output=True,
+        text=True,
+    )
+    cases = []
+    for tc in ET.parse(out_file).getroot().iter("testcase"):
+        failed = tc.find("failure") is not None or tc.find("error") is not None
+        cases.append(
+            {
+                "file": js_rel,
+                "classname": js_rel,
+                "name": tc.attrib.get("name", ""),
+                "status": "fail" if failed else "pass",
+                "time": tc.attrib.get("time", "0"),
+            }
+        )
+    return cases
+
+
 def run_tests():
     REPORTS.mkdir(parents=True, exist_ok=True)
+    # Remove the previous report so a failed run cannot leave stale evidence behind
+    (REPORTS / "junit.xml").unlink(missing_ok=True)
     test_file_map = map_go_tests_to_files()
 
     proc = subprocess.run(
@@ -67,32 +103,9 @@ def run_tests():
                 }
             )
 
-    # Run Node tests across all web/src/*.test.mjs files
-    js_test_files = sorted(
-        p.relative_to(ROOT).as_posix() for p in (ROOT / "web/src").glob("*.test.mjs")
-    )
-    if js_test_files:
-        node_proc = subprocess.run(
-            ["node", "--test", *js_test_files],
-            cwd=ROOT,
-            env=get_env(),
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        js_test_re = re.compile(r"""^\s*test\(\s*["'`](.+?)["'`]""", re.MULTILINE)
-        for js_rel in js_test_files:
-            js_text = (ROOT / js_rel).read_text(encoding="utf-8")
-            for m in js_test_re.finditer(js_text):
-                testcases.append(
-                    {
-                        "file": js_rel,
-                        "classname": js_rel,
-                        "name": m.group(1),
-                        "status": "pass" if node_proc.returncode == 0 else "fail",
-                        "time": "0.01",
-                    }
-                )
+    # Run each web/src/*.test.mjs file on its own so every result keeps its file name
+    for js_rel in sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "web/src").glob("*.test.mjs")):
+        testcases.extend(run_node_file_junit(js_rel))
 
     suites = ET.Element("testsuites", attrib={"tests": str(len(testcases))})
     suite = ET.SubElement(
@@ -121,7 +134,7 @@ def run_tests():
     tree.write(REPORTS / "junit.xml", encoding="utf-8", xml_declaration=True)
 
 
-def convert_coverprofile_to_lcov(coverprofile_path, lcov_path, include_js=True):
+def convert_coverprofile_to_lcov(coverprofile_path, lcov_path):
     blocks_by_file = {}
     raw = coverprofile_path.read_text(encoding="utf-8").splitlines()
     block_re = re.compile(r"^(.+?):(\d+)\.\d+,(\d+)\.\d+\s+(\d+)\s+(\d+)$")
@@ -158,27 +171,6 @@ def convert_coverprofile_to_lcov(coverprofile_path, lcov_path, include_js=True):
         lcov_lines.append(f"BRH:{brh}")
         lcov_lines.append("end_of_record")
 
-    if include_js:
-        for js_path in sorted((ROOT / "web/src").glob("*.mjs")):
-            if js_path.name.endswith(".test.mjs"):
-                continue
-            js_rel = js_path.relative_to(ROOT).as_posix()
-            js_lines = js_path.read_text(encoding="utf-8").splitlines()
-            lcov_lines.append(f"SF:{js_rel}")
-            da_count = 0
-            for idx, text_line in enumerate(js_lines, start=1):
-                stripped = text_line.strip()
-                if stripped and not stripped.startswith("//"):
-                    lcov_lines.append(f"DA:{idx},1")
-                    da_count += 1
-            lcov_lines.append(f"LF:{da_count}")
-            lcov_lines.append(f"LH:{da_count}")
-            lcov_lines.append("BRDA:3,0,0,1")
-            lcov_lines.append("BRDA:3,0,1,1")
-            lcov_lines.append("BRF:2")
-            lcov_lines.append("BRH:2")
-            lcov_lines.append("end_of_record")
-
     lcov_path.write_text("\n".join(lcov_lines) + "\n", encoding="utf-8")
 
 
@@ -197,22 +189,36 @@ def run_coverage():
         env=get_env(),
         check=True,
     )
+    # JavaScript line coverage comes from Node's own instrumentation, not synthesized
     js_test_files = sorted(
         p.relative_to(ROOT).as_posix() for p in (ROOT / "web/src").glob("*.test.mjs")
     )
-    v8_dir = REPORTS / "v8cov"
-    if v8_dir.exists():
-        shutil.rmtree(v8_dir)
-    v8_env = get_env()
-    v8_env["NODE_V8_COVERAGE"] = str(v8_dir)
+    js_lcov = REPORTS / "js-lcov.info"
+    js_lcov.unlink(missing_ok=True)
     subprocess.run(
-        ["node", "--test", *js_test_files],
+        [
+            "node",
+            "--test",
+            "--experimental-test-coverage",
+            "--test-reporter=lcov",
+            f"--test-reporter-destination={js_lcov}",
+            *js_test_files,
+        ],
         cwd=ROOT,
-        env=v8_env,
+        env=get_env(),
         check=True,
     )
-    shutil.rmtree(v8_dir, ignore_errors=True)
-    convert_coverprofile_to_lcov(cov_out, REPORTS / "lcov.info", include_js=True)
+    convert_coverprofile_to_lcov(cov_out, REPORTS / "lcov.info")
+    # Node also instruments the test files; only source files belong in the report
+    keep = []
+    skip = False
+    for line in js_lcov.read_text(encoding="utf-8").splitlines():
+        if line.startswith("SF:"):
+            skip = line.endswith(".test.mjs")
+        if not skip:
+            keep.append(line)
+    with (REPORTS / "lcov.info").open("a", encoding="utf-8") as combined:
+        combined.write("\n".join(keep) + "\n")
 
 
 def run_per_req(test_ids):

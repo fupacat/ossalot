@@ -132,26 +132,89 @@ def scan_anchors(scope_dirs):
     return regions_by_req, tests_by_req
 
 
-def parse_junit_passed():
+def parse_junit_results():
+    """Return {test_id: pass|fail|skip} from the evidence report, or None if it is missing."""
     junit_path = ROOT / "reports/junit.xml"
     if not junit_path.exists():
-        return set()
+        return None
     tree = ET.parse(junit_path)
-    passed = set()
+    results = {}
     for tc in tree.getroot().iter("testcase"):
-        if (
-            tc.find("failure") is None
-            and tc.find("error") is None
-            and tc.find("skipped") is None
-        ):
-            name = tc.attrib.get("name", "")
-            classname = tc.attrib.get("classname", "")
-            file_attr = tc.attrib.get("file", "")
-            if file_attr and classname:
-                passed.add(f"{file_attr}::{classname}::{name}")
-            elif file_attr:
-                passed.add(f"{file_attr}::{name}")
-    return passed
+        name = tc.attrib.get("name", "")
+        classname = tc.attrib.get("classname", "")
+        file_attr = tc.attrib.get("file", "")
+        if not file_attr:
+            continue
+        test_id = f"{file_attr}::{classname}::{name}" if classname else f"{file_attr}::{name}"
+        if tc.find("failure") is not None or tc.find("error") is not None:
+            results[test_id] = "fail"
+        elif tc.find("skipped") is not None:
+            results[test_id] = "skip"
+        else:
+            results[test_id] = "pass"
+    return results
+
+
+def parse_lcov_lines():
+    """Return {file: {line: hit_count}} from the coverage report, or None if it is missing."""
+    lcov_path = ROOT / "reports/lcov.info"
+    if not lcov_path.exists():
+        return None
+    coverage = {}
+    current = None
+    for line in lcov_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("SF:"):
+            current = line[3:]
+            coverage.setdefault(current, {})
+        elif line.startswith("DA:") and current:
+            ln, count = line[3:].split(",")[:2]
+            prev = coverage[current].get(int(ln), 0)
+            coverage[current][int(ln)] = max(prev, int(count))
+    return coverage
+
+
+def region_line_coverage(regions, coverage):
+    """Percent of executable lines covered across the given `file:start-end` spans, or None."""
+    executable = {}
+    for region in regions:
+        rel, span = region.strip("`").rsplit(":", 1)
+        start, end = (int(x) for x in span.split("-"))
+        for ln, count in coverage.get(rel, {}).items():
+            if start <= ln <= end:
+                executable[(rel, ln)] = count
+    if not executable:
+        return None
+    covered = sum(1 for count in executable.values() if count > 0)
+    return 100.0 * covered / len(executable)
+
+
+def requirement_status(reqs, regions_by_req, tests_by_req):
+    """Compute each requirement's evidence status once, for both the matrix and the audit record."""
+    results = parse_junit_results()
+    coverage = parse_lcov_lines()
+    statuses = {}
+    for req_id in sorted(reqs):
+        tlist = tests_by_req.get(req_id, [])
+        if not tlist:
+            statuses[req_id] = {"status": "unverified", "coverage": None}
+            continue
+        if results is None:
+            statuses[req_id] = {"status": "no evidence", "coverage": None}
+            continue
+        outcomes = [results.get(t) for t in tlist]
+        if any(o is None for o in outcomes):
+            status = "not run"
+        elif "fail" in outcomes:
+            status = "failing"
+        elif "skip" in outcomes:
+            status = "skipped"
+        else:
+            status = "verified"
+        pct = None
+        if status == "verified" and coverage is not None:
+            pct = region_line_coverage(regions_by_req.get(req_id, []), coverage)
+        statuses[req_id] = {"status": status, "coverage": pct}
+    return statuses
 
 
 def write_trace_matrix(mode="definitions"):
@@ -159,7 +222,7 @@ def write_trace_matrix(mode="definitions"):
     reqs = parse_requirements()
     ifaces = parse_interfaces()
     regions_by_req, tests_by_req = scan_anchors(manifest.get("scope", []))
-    passed_tests = parse_junit_passed()
+    statuses = requirement_status(reqs, regions_by_req, tests_by_req)
 
     ifaces_by_req = {}
     for if_id, info in ifaces.items():
@@ -180,13 +243,12 @@ def write_trace_matrix(mode="definitions"):
         regs = ", ".join(regions_by_req.get(req_id, [])) or "none"
         tlist = tests_by_req.get(req_id, [])
         tests_str = ", ".join(f"`{t}`" for t in tlist) if tlist else "none"
-        if not tlist:
-            cov_str = "n/a (unverified, P1.6)"
-            status_str = "unverified"
+        status = statuses[req_id]
+        status_str = status["status"]
+        if status["coverage"] is None:
+            cov_str = "n/a"
         else:
-            all_passed = (not passed_tests) or all(t in passed_tests for t in tlist)
-            cov_str = "100% line, 100% branch (EX-001 Go statement)" if all_passed else "0%"
-            status_str = "verified" if all_passed else "failing"
+            cov_str = f"{status['coverage']:.1f}% line (lcov)"
         lines.append(
             f"| {req_id} | {r['source']} | {ifs} | {regs} | {tests_str} | {cov_str} | self (O4.4) | {status_str} |"
         )
@@ -209,6 +271,21 @@ def write_trace_matrix(mode="definitions"):
     (ROOT / "docs/mcswe/trace-matrix.md").write_text(
         "\n".join(lines), encoding="utf-8"
     )
+
+
+def git_output(args):
+    result = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True)
+    return result.stdout.strip()
+
+
+def tool_version(cmd):
+    """Version reported by the installed tool, or 'not found'."""
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return "not found"
+    match = re.search(r"\d+\.\d+(?:\.\d+)?", out)
+    return match.group(0) if match else out.strip()
 
 
 def write_audit_record(commit_sha, mode="definitions"):
@@ -319,6 +396,42 @@ def write_audit_record(commit_sha, mode="definitions"):
             digest = hashlib.sha256(full.read_bytes()).hexdigest()
             evidence_list.append({"file": rep_path, "sha256": digest})
 
+    # Every finding comes from a check that ran; nothing here is assumed to pass.
+    scope = manifest.get("scope", [])
+    findings = []
+    head = git_output(["rev-parse", "HEAD"])
+    if commit_sha != head:
+        findings.append(f"audited commit {commit_sha} is not HEAD ({head})")
+    dirty = git_output(["status", "--porcelain", "--", *scope])
+    if dirty:
+        findings.append("uncommitted changes in scope: " + "; ".join(dirty.splitlines()))
+
+    results = parse_junit_results()
+    if results is None:
+        findings.append("test report missing: reports/junit.xml")
+    else:
+        for test_id, outcome in sorted(results.items()):
+            if outcome == "fail":
+                findings.append(f"test failed: {test_id}")
+    if not (ROOT / "reports/lcov.info").exists():
+        findings.append("coverage report missing: reports/lcov.info")
+
+    reqs = parse_requirements()
+    regions_by_req, tests_by_req = scan_anchors(scope)
+    for req_id, st in requirement_status(reqs, regions_by_req, tests_by_req).items():
+        if st["status"] != "verified":
+            findings.append(f"{req_id}: {st['status']}")
+        elif st["coverage"] is not None and st["coverage"] < 100.0:
+            findings.append(f"{req_id}: line coverage {st['coverage']:.1f}%")
+
+    exceptions_text = (ROOT / manifest["documents"]["exceptions"]).read_text(encoding="utf-8")
+    exception_count = len(re.findall(r"^#+\s*EX-\d+", exceptions_text, re.MULTILINE))
+
+    result = "fail" if findings else "pass"
+    for key, value in clauses.items():
+        if value != "not_applicable":
+            clauses[key] = result
+
     record = {
         "standard": "1.0",
         "commit": commit_sha,
@@ -335,19 +448,19 @@ def write_audit_record(commit_sha, mode="definitions"):
             manifest["evidence"]["coverage_command"],
         ],
         "tools": {
-            "go": "1.23.2",
-            "node": "18.19.1",
-            "python": "3.12.3",
+            "go": tool_version(["go", "version"]),
+            "node": tool_version(["node", "--version"]),
+            "python": tool_version(["python3", "--version"]),
         },
         "evidence": evidence_list,
         "exceptions": {
-            "count": 0,
+            "count": exception_count,
             "lines_covered": 0,
         },
         "open_emergencies": [],
         "clauses": clauses,
-        "findings": [],
-        "result": "pass",
+        "findings": findings,
+        "result": result,
     }
 
     out_file = audit_dir / f"{commit_sha}.yaml"
