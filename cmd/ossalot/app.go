@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/eric/ossalot/internal/api"
@@ -72,26 +71,29 @@ func newServer(store *db.Store, envLookup config.EnvLookupFunc) (*api.Server, *s
 	return srv, runner
 }
 
-// TRACEABILITY_MAPPING: REQ-039, REQ-040
-func buildHandler(apiSrv http.Handler) http.Handler {
-	dist, _ := fs.Sub(web.Assets, "dist")
-	src, _ := fs.Sub(web.Assets, "src")
-	mux := http.NewServeMux()
-	mux.Handle("/api/", apiSrv)
-	mux.Handle("/src/", http.StripPrefix("/src/", withModuleType(http.FileServer(http.FS(src)))))
-	mux.Handle("/", http.FileServer(http.FS(dist)))
-	return mux
+// embeddedUI returns the Vite build embedded by web/embed.go, rooted at its index.html.
+// TRACEABILITY_MAPPING: REQ-052
+func embeddedUI() fs.FS {
+	ui, _ := fs.Sub(web.Assets, "dist") // fails only for an invalid path, and "dist" is valid
+	return ui
 }
 
-// withModuleType sets the JavaScript type for .mjs files, which the OS MIME tables may not know.
-// TRACEABILITY_MAPPING: REQ-040
-func withModuleType(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, ".mjs") {
-			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-		}
-		next.ServeHTTP(w, r)
-	})
+// uiNotBuilt is the page for a binary built without the frontend build (ADR-029).
+// TRACEABILITY_MAPPING: REQ-053
+const uiNotBuilt = "The OSSAlot UI is not in this binary. Run npm ci && npm run build in web/, then rebuild ossalot (make build does both).\n"
+
+// TRACEABILITY_MAPPING: REQ-039, REQ-052, REQ-053
+func buildHandler(apiSrv http.Handler, ui fs.FS) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/api/", apiSrv)
+	if _, err := fs.Stat(ui, "index.html"); err != nil {
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, uiNotBuilt, http.StatusServiceUnavailable)
+		})
+		return mux
+	}
+	mux.Handle("/", http.FileServer(http.FS(ui)))
+	return mux
 }
 
 // TRACEABILITY_MAPPING: REQ-041

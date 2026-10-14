@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Scan the markup, the page script and the models it imports for class names */
+@source "../index.html";
+@source "../src";
+
+/* The page sets class="dark" on <html>; dark: variants follow that class, not the OS setting */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-slate-850: #151f32;
+  --color-slate-950: #090d16;
+}
+
+body {
+  background-color: #090d16;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
