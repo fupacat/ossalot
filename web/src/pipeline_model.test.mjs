@@ -31,3 +31,12 @@ test("[REQ-035] generatePipelineWorkflow and PIPELINE_TEMPLATES", () => {
   const fallback = generatePipelineWorkflow("unknown_type", null);
   assert.equal(fallback.filename, ".github/workflows/ci.yml");
 });
+
+// TRACEABILITY_MAPPING: REQ-035
+test("[REQ-035] generatePipelineWorkflow uses the repository name whether or not it has an owner", () => {
+  const withOwner = generatePipelineWorkflow("sonar_analysis", "acme/widget");
+  assert.match(withOwner.content, /Running SonarCloud analysis for acme\/widget\.\.\./);
+
+  const withoutOwner = generatePipelineWorkflow("sonar_analysis", "widget");
+  assert.match(withoutOwner.content, /Running SonarCloud analysis for widget\.\.\./);
+});

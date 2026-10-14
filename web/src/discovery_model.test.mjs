@@ -61,3 +61,38 @@ test("[REQ-025] filterOpportunities and formatPRPlanSummary", () => {
 
   assert.throws(() => formatPRPlanSummary(null), /opportunity object is required/);
 });
+
+// TRACEABILITY_MAPPING: REQ-025
+test("[REQ-025] filterOpportunities and formatPRPlanSummary tolerate missing fields", () => {
+  const opps = [
+    { external_id: "gh:acme/no-score#4", category: "github_issue", status: "new" },
+    { external_id: "hn:200", category: "hackernews", status: "new", relevance_score: 80 },
+  ];
+
+  // Without a minimum score every opportunity passes; a missing score counts as 0 and sorts last
+  const all = filterOpportunities(opps);
+  assert.deepEqual(all.map((o) => o.external_id), ["hn:200", "gh:acme/no-score#4"]);
+
+  // A minimum score excludes the opportunity that has no score
+  const high = filterOpportunities(opps, { minScore: 50 });
+  assert.deepEqual(high.map((o) => o.external_id), ["hn:200"]);
+
+  // The sort must handle a missing score on either side of the comparison
+  const reversed = filterOpportunities([opps[1], opps[0]]);
+  assert.deepEqual(reversed.map((o) => o.external_id), ["hn:200", "gh:acme/no-score#4"]);
+  const scoreLast = filterOpportunities([
+    { external_id: "gh:acme/a#1", relevance_score: 10 },
+    { external_id: "gh:acme/b#2" },
+    { external_id: "gh:acme/c#3", relevance_score: 90 },
+  ]);
+  assert.deepEqual(scoreLast.map((o) => o.external_id), ["gh:acme/c#3", "gh:acme/a#1", "gh:acme/b#2"]);
+
+  // Missing plan fields produce empty values rather than undefined
+  assert.deepEqual(formatPRPlanSummary({}), {
+    externalId: "",
+    targetCommunity: "",
+    relevanceScore: 0,
+    stepsCount: 0,
+    steps: [],
+  });
+});
