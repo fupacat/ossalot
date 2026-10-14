@@ -263,6 +263,20 @@ func TestFetchTrafficSnapshotRestrictedRepository(t *testing.T) {
 		}
 		t.Logf("views=%d clones=%d referrers=%d err=%v", snap.ViewsTotal, snap.ClonesTotal, len(snap.Referrers), err)
 	}
+
+	// Only 403 and 404 mean "no access"; other failures stay errors
+	for _, failing := range []string{"views", "clones", "popular/referrers"} {
+		routes := map[string]fakeRoute{
+			"GET /repos/octo/demo/traffic/views":             {200, `{"count":1,"uniques":1}`},
+			"GET /repos/octo/demo/traffic/clones":            {200, `{"count":1,"uniques":1}`},
+			"GET /repos/octo/demo/traffic/popular/referrers": {200, `[]`},
+		}
+		routes["GET /repos/octo/demo/traffic/"+failing] = fakeRoute{http.StatusInternalServerError, `{}`}
+		_, srv := newFakeGitHub(t, routes)
+		if _, err := NewClient(srv.URL, srv.URL, srv.Client()).FetchTrafficSnapshot(ctx, "tok", "octo", "demo"); err == nil {
+			t.Fatalf("%s: expected an error when the endpoint fails with 500", failing)
+		}
+	}
 }
 
 // TRACEABILITY_MAPPING: REQ-048
