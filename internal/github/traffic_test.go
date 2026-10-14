@@ -13,21 +13,21 @@ func TestFetchTrafficSnapshot(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/octocat/hello-world/traffic/views", func(w http.ResponseWriter, r *http.Request) {
 		if step == "fail_views" {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		_, _ = w.Write([]byte(`{"count":120,"uniques":45}`))
 	})
 	mux.HandleFunc("GET /repos/octocat/hello-world/traffic/clones", func(w http.ResponseWriter, r *http.Request) {
 		if step == "fail_clones" {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		_, _ = w.Write([]byte(`{"count":35,"uniques":18}`))
 	})
 	mux.HandleFunc("GET /repos/octocat/hello-world/traffic/popular/referrers", func(w http.ResponseWriter, r *http.Request) {
 		if step == "fail_referrers" {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		_, _ = w.Write([]byte(`[{"referrer":"news.ycombinator.com","count":50,"uniques":40},{"referrer":"reddit.com","count":25,"uniques":20}]`))

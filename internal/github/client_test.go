@@ -101,6 +101,13 @@ func TestInspectAndListRepositories(t *testing.T) {
 // TRACEABILITY_MAPPING: REQ-007
 func TestCreateRemediationPR(t *testing.T) {
 	mux := http.NewServeMux()
+	branchExists := func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"object":{"sha":"abc"}}`))
+	}
+	mux.HandleFunc("GET /repos/octocat/hello-world/git/ref/heads/ossalot/security-policy", branchExists)
+	mux.HandleFunc("GET /repos/octocat/fail-pr/git/ref/heads/ossalot/security-policy", branchExists)
+	mux.HandleFunc("GET /repos/octocat/hello-world/contents/SECURITY.md", http.NotFound)
+	mux.HandleFunc("GET /repos/octocat/fail-pr/contents/SECURITY.md", http.NotFound)
 	mux.HandleFunc("PUT /repos/octocat/hello-world/contents/SECURITY.md", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"content":{"path":"SECURITY.md"}}`))
 	})
@@ -159,10 +166,12 @@ func TestCreateRemediationPR(t *testing.T) {
 
 	// POST PR failure
 	if _, err := client.CreateRemediationPR(ctx, "ghp_tok", PullRequestRequest{
-		Owner:    "octocat",
-		Repo:     "fail-pr",
-		IsOwned:  true,
-		FilePath: "SECURITY.md",
+		Owner:      "octocat",
+		Repo:       "fail-pr",
+		IsOwned:    true,
+		BaseBranch: "main",
+		NewBranch:  "ossalot/security-policy",
+		FilePath:   "SECURITY.md",
 	}); err == nil {
 		t.Fatalf("expected error on POST PR failure")
 	}

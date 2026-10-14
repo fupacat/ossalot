@@ -22,14 +22,25 @@ type TrafficSnapshot struct {
 	Referrers    []ReferrerItem `json:"referrers"`
 }
 
-// TRACEABILITY_MAPPING: REQ-015
+// fetchTraffic leaves out at its zero value when GitHub refuses traffic data (403 or 404),
+// which it does for repositories the token cannot push to.
+// TRACEABILITY_MAPPING: REQ-047
+func (c *Client) fetchTraffic(ctx context.Context, url, token string, out any) error {
+	err := c.doJSON(ctx, http.MethodGet, url, token, nil, out)
+	if hasStatus(err, http.StatusForbidden, http.StatusNotFound) {
+		return nil
+	}
+	return err
+}
+
+// TRACEABILITY_MAPPING: REQ-015, REQ-047
 func (c *Client) FetchTrafficSnapshot(ctx context.Context, token, owner, repo string) (TrafficSnapshot, error) {
 	var viewsResp struct {
 		Count   int `json:"count"`
 		Uniques int `json:"uniques"`
 	}
 	viewsURL := fmt.Sprintf("%s/repos/%s/%s/traffic/views", c.APIBaseURL, owner, repo)
-	if err := c.doJSON(ctx, http.MethodGet, viewsURL, token, nil, &viewsResp); err != nil {
+	if err := c.fetchTraffic(ctx, viewsURL, token, &viewsResp); err != nil {
 		return TrafficSnapshot{}, err
 	}
 
@@ -38,13 +49,13 @@ func (c *Client) FetchTrafficSnapshot(ctx context.Context, token, owner, repo st
 		Uniques int `json:"uniques"`
 	}
 	clonesURL := fmt.Sprintf("%s/repos/%s/%s/traffic/clones", c.APIBaseURL, owner, repo)
-	if err := c.doJSON(ctx, http.MethodGet, clonesURL, token, nil, &clonesResp); err != nil {
+	if err := c.fetchTraffic(ctx, clonesURL, token, &clonesResp); err != nil {
 		return TrafficSnapshot{}, err
 	}
 
 	var referrers []ReferrerItem
 	refURL := fmt.Sprintf("%s/repos/%s/%s/traffic/popular/referrers", c.APIBaseURL, owner, repo)
-	if err := c.doJSON(ctx, http.MethodGet, refURL, token, nil, &referrers); err != nil {
+	if err := c.fetchTraffic(ctx, refURL, token, &referrers); err != nil {
 		return TrafficSnapshot{}, err
 	}
 

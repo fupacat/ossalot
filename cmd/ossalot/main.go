@@ -1,16 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"io"
 	"net/http"
 	"os"
 
-	"github.com/eric/ossalot/internal/api"
 	"github.com/eric/ossalot/internal/config"
 	"github.com/eric/ossalot/internal/db"
-	"github.com/eric/ossalot/internal/github"
-	"github.com/eric/ossalot/internal/llm"
 )
 
 // TRACEABILITY_MAPPING: REQ-012
@@ -19,7 +17,7 @@ var (
 	listenFunc = http.ListenAndServe
 )
 
-// TRACEABILITY_MAPPING: REQ-012
+// TRACEABILITY_MAPPING: REQ-012, REQ-039, REQ-042
 func Run(args []string, envLookup config.EnvLookupFunc) int {
 	cfg := config.LoadFromEnv(envLookup)
 	fs := flag.NewFlagSet("ossalot", flag.ContinueOnError)
@@ -34,11 +32,14 @@ func Run(args []string, envLookup config.EnvLookupFunc) int {
 	if err != nil {
 		return 2
 	}
-	srv := api.NewServer(store, github.NewClient("", "", nil), llm.NewClient("", nil))
+	srv, runner := newServer(store, envLookup)
 	if *checkOnly {
 		return 0
 	}
-	if err := listenFunc(*addr, srv); err != nil {
+	go func() {
+		_, _ = runner.TriggerJob(context.Background(), enrichmentJobName)
+	}()
+	if err := listenFunc(*addr, buildHandler(srv)); err != nil {
 		return 2
 	}
 	return 0

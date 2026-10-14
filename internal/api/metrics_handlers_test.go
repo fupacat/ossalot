@@ -36,7 +36,8 @@ func TestMetricsEndpoints(t *testing.T) {
 	})
 	mux.HandleFunc("GET /repos/octocat/hello-world/traffic/views", func(w http.ResponseWriter, r *http.Request) {
 		if mode == "fail_traffic" {
-			w.WriteHeader(http.StatusForbidden)
+			// 403 and 404 are now an empty snapshot (REQ-047); other failures still fail the collection
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		_, _ = w.Write([]byte(`{"count":200,"uniques":90}`))
