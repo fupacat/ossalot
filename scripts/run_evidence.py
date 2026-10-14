@@ -307,6 +307,7 @@ def run_go_branch_coverage(lcov_path):
     run_bcov_tests(out, hits_dir, ["./..."])
     merge_bcov_branches(lcov_path, out, hits_dir)
 
+
 def run_per_req(test_ids):
     """Run only the given tests with coverage; write reports/per-req/<key>.lcov for them.
 
