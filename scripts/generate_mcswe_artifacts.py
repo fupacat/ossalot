@@ -759,22 +759,28 @@ def is_pending(sha, mainline):
 def merge_approvals(baseline):
     """{revision: [approver, ...]} for commits brought in by pull requests merged on GitHub (ADR-033).
 
-    A merge on HEAD's first-parent history, committed by GitHub with a "Merge pull request #N" subject,
-    approves every commit it brought in. The approver is the merge's author: the person who merged.
-    Local merges are committed by their author, not GitHub, so they approve nothing.
+    A merge on the first-parent history of HEAD or of the mainline, committed by GitHub with a
+    "Merge pull request #N" subject, approves every commit it brought in. The approver is the merge's
+    author: the person who merged. The mainline is read too because a branch that merged main in has
+    main's pull request merges on its second-parent side. Local merges are committed by their author,
+    not GitHub, so they approve nothing.
     """
     approved = {}
     if not baseline:
         return approved
-    raw = git_output(["log", "--first-parent", "--merges", "--format=%H%x1f%an%x1f%ae%x1f%ce%x1f%s", f"{baseline}..HEAD"])
-    for line in raw.splitlines():
-        sha, name, email, committer_email, subject = line.split("\x1f", 4)
-        if committer_email != "noreply@github.com" or not subject.startswith("Merge pull request #"):
-            continue
-        pr = subject.split()[3]  # "Merge pull request #N from owner/branch"
-        approver = f"{name} <{email}> (merged {pr})"
-        for merged in git_output(["rev-list", f"{sha}^1..{sha}^2"]).splitlines():
-            approved.setdefault(merged, []).append(approver)
+    heads = ["HEAD"] + [ref for ref in [mainline_ref()] if ref]
+    seen = set()
+    for head in heads:
+        raw = git_output(["log", "--first-parent", "--merges", "--format=%H%x1f%an%x1f%ae%x1f%ce%x1f%s", f"{baseline}..{head}"])
+        for line in raw.splitlines():
+            sha, name, email, committer_email, subject = line.split("\x1f", 4)
+            if sha in seen or committer_email != "noreply@github.com" or not subject.startswith("Merge pull request #"):
+                continue
+            seen.add(sha)
+            pr = subject.split()[3]  # "Merge pull request #N from owner/branch"
+            approver = f"{name} <{email}> (merged {pr})"
+            for merged in git_output(["rev-list", f"{sha}^1..{sha}^2"]).splitlines():
+                approved.setdefault(merged, []).append(approver)
     return approved
 
 
