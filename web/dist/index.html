@@ -797,6 +797,8 @@
             <p class="text-slate-300">${so.summary}</p>
             <div class="flex items-center gap-2 pt-1 flex-wrap">
               <a href="${so.actionURL}" target="_blank" rel="noopener" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold inline-flex items-center gap-1">${so.actionLabel} &nearr;</a>
+              <a href="${so.tokenURL}" target="_blank" rel="noopener" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold inline-flex items-center gap-1">Create SonarCloud token &nearr;</a>
+              <a href="${so.secretURL}" target="_blank" rel="noopener" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold inline-flex items-center gap-1">Add ${so.secretName} secret &nearr;</a>
               ${so.projectExists ? `<img src="https://sonarcloud.io/api/project_badges/measure?project=${so.projectKey}&metric=alert_status" alt="Sonar Quality Gate" class="h-6" />` : ''}
             </div>
           </div>
