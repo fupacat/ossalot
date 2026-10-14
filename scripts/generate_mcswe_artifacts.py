@@ -522,8 +522,8 @@ def evaluate(ctx):
     not_automated("O5.5", "identifier reuse is not checked against history")
 
     # O6
-    res["O6.1"] = "fail"
-    finding("O6.1", "not checked by the audit tool: definitions-before-code order is not read from history")
+    problems = definition_order_problems(reqs, ctx.scope)
+    check("O6.1", problems, [p.split(" ")[0] for p in problems])
     res["O6.2"] = res["O1.1"]
     if res["O6.2"] == "fail":
         for problem in source_problems:
@@ -679,6 +679,30 @@ def evaluate(ctx):
 
 
 # --- Outputs -----------------------------------------------------------------
+
+def first_commit(args):
+    """Oldest commit matching the git log arguments, or None."""
+    shas = git_output(["log", "--reverse", "--format=%H", *args]).splitlines()
+    return shas[0] if shas else None
+
+
+def definition_order_problems(reqs, scope):
+    """Requirements whose code entered scope before, or in the same commit as, their definition (O6.1, P1.1)."""
+    problems = []
+    for req_id in sorted(reqs):
+        defined = first_commit(["-S", f"{req_id} ", "--", "docs/mcswe/requirements.md"])
+        implemented = first_commit(["-G", f"TRACEABILITY_MAPPING:.*{req_id}([^0-9]|$)", "--", *scope])
+        if implemented is None:
+            continue  # no code yet; the status column already shows it as unverified
+        if defined is None:
+            problems.append(f"{req_id} has code in scope but no definition in the requirements history")
+        elif defined == implemented:
+            problems.append(f"{req_id} was defined and implemented in the same commit {defined[:7]}")
+        elif subprocess.run(["git", "merge-base", "--is-ancestor", defined, implemented],
+                            cwd=ROOT, capture_output=True).returncode != 0:
+            problems.append(f"{req_id} code ({implemented[:7]}) entered scope before its definition ({defined[:7]})")
+    return problems
+
 
 def write_trace_matrix(ctx, reqs, ifaces):
     ifaces_by_req = {}

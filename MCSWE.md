@@ -4,6 +4,7 @@ scope:
   - cmd/
   - internal/
   - web/src/
+  - .github/workflows/
 out_of_scope:
   - .gitignore
   - IMPLEMENTATION_PLAN.md
