@@ -15,7 +15,7 @@ REPORTS = ROOT / "reports"
 GO_BIN = shutil.which("go") or "/home/eric/.gemini/antigravity/brain/dc8f5867-fc68-42d2-94ac-0a94391363ac/scratch/go/bin/go"
 MODULE_PREFIX = "github.com/eric/ossalot/"
 BCOV_MODULE = "github.com/fupacat/bcov"
-BCOV_VERSION = "v0.1.0"
+BCOV_VERSION = "v0.1.1"
 JS_NAME_SPECIALS = re.compile(r"[\\^$.*+?()\[\]{}|/]")
 
 
@@ -23,22 +23,6 @@ def get_env():
     env = os.environ.copy()
     go_dir = str(Path(GO_BIN).parent)
     env["PATH"] = f"{go_dir}:{env.get('PATH', '')}"
-    return env
-
-
-def bcov_env():
-    """Environment for fetching the pinned bcov module from its private repository.
-
-    Go fetches private modules through git. When the GitHub CLI is installed, its login is used as the
-    git credential helper for this process only, so no global git configuration changes.
-    """
-    env = get_env()
-    env["GOPRIVATE"] = BCOV_MODULE.rsplit("/", 1)[0] + "/*"
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    if "GIT_CONFIG_COUNT" not in os.environ and shutil.which("gh"):
-        env["GIT_CONFIG_COUNT"] = "1"
-        env["GIT_CONFIG_KEY_0"] = "credential.https://github.com.helper"
-        env["GIT_CONFIG_VALUE_0"] = "!gh auth git-credential"
     return env
 
 
@@ -248,33 +232,45 @@ def run_coverage():
     run_go_branch_coverage(REPORTS / "lcov.info")
 
 
-def run_go_branch_coverage(lcov_path):
-    """Count every outcome of every Go decision and add the results to lcov_path as BRDA records.
+def prepare_bcov():
+    """Instrument copies of the in-scope Go packages with bcov; return the output directory.
 
-    bcov instruments copies of the in-scope packages under reports/_bcov. The copies are applied
-    with -overlay, so the repository tree is not modified. The leading underscore keeps ./... from
-    picking up the copies as packages.
+    The copies live under reports/_bcov and are applied with -overlay, so the repository tree is not
+    modified. The leading underscore keeps ./... from picking up the copies as packages.
     """
     out = REPORTS / "_bcov"
     shutil.rmtree(out, ignore_errors=True)
     subprocess.run(
         [GO_BIN, "run", f"{BCOV_MODULE}@{BCOV_VERSION}", "-root", str(ROOT), "-out", str(out)],
         cwd=ROOT,
-        env=bcov_env(),
+        env=get_env(),
         check=True,
     )
-    hits_dir = out / "hits"
-    hits_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [GO_BIN, "test", "-vet=off", "-count=1", "-overlay", str(out / "overlay.json"), "./..."],
-        cwd=ROOT,
-        env={**get_env(), "BCOV_OUT": str(hits_dir)},
-        check=True,
-    )
+    return out
 
+
+def run_bcov_tests(out, hits_dir, packages, run_pattern=None):
+    """Run the tests against the instrumented copies, writing one hit-count file per package."""
+    shutil.rmtree(hits_dir, ignore_errors=True)
+    hits_dir.mkdir(parents=True, exist_ok=True)
+    command = [GO_BIN, "test", "-vet=off", "-count=1", "-overlay", str(out / "overlay.json")]
+    if run_pattern:
+        command += ["-run", run_pattern]
+    subprocess.run(command + packages, cwd=ROOT, env={**get_env(), "BCOV_OUT": str(hits_dir)}, check=True)
+
+
+def merge_bcov_branches(lcov_path, out, hits_dir, package_dirs=None):
+    """Add bcov's outcome counts to lcov_path as BRDA records, for package_dirs (or every package).
+
+    A package whose tests ran but wrote no hit file means the test hook did not run, which is an
+    error. Packages outside package_dirs are skipped, so per-requirement runs only report the
+    packages whose tests they ran.
+    """
     manifest = json.loads((out / "decisions.json").read_text(encoding="utf-8"))
     branches_by_file = {}
     for pkg in manifest["packages"]:
+        if package_dirs is not None and pkg["dir"] not in package_dirs:
+            continue
         hit_file = hits_dir / pkg["hits"]
         if not hit_file.exists():
             raise RuntimeError(f"no branch hit counts for {pkg['dir']}: the test hook did not run")
@@ -304,6 +300,14 @@ def run_go_branch_coverage(lcov_path):
     lcov_path.write_text("".join(merged), encoding="utf-8")
 
 
+def run_go_branch_coverage(lcov_path):
+    """Count every outcome of every Go decision across the whole suite and add them to lcov_path."""
+    out = prepare_bcov()
+    hits_dir = out / "hits"
+    run_bcov_tests(out, hits_dir, ["./..."])
+    merge_bcov_branches(lcov_path, out, hits_dir)
+
+
 def run_per_req(test_ids):
     """Run only the given tests with coverage; write reports/per-req/<key>.lcov for them.
 
@@ -326,6 +330,7 @@ def run_per_req(test_ids):
             go_names.setdefault(classname.removeprefix(MODULE_PREFIX), []).append(name)
 
     parts = []
+    bcov_out = prepare_bcov() if go_names else None
     for index, (pkg_dir, names) in enumerate(sorted(go_names.items())):
         profile = out_dir / f"{key}-go{index}.out"
         pattern = "^(?:" + "|".join(re.escape(n) for n in names) + ")$"
@@ -337,6 +342,10 @@ def run_per_req(test_ids):
         )
         lcov_part = out_dir / f"{key}-go{index}.lcov"
         convert_coverprofile_to_lcov(profile, lcov_part)
+        hits_dir = out_dir / f"{key}-go{index}-hits"
+        run_bcov_tests(bcov_out, hits_dir, [f"./{pkg_dir}"], pattern)
+        merge_bcov_branches(lcov_part, bcov_out, hits_dir, {pkg_dir})
+        shutil.rmtree(hits_dir, ignore_errors=True)
         parts.append(lcov_part.read_text(encoding="utf-8"))
         profile.unlink()
         lcov_part.unlink()

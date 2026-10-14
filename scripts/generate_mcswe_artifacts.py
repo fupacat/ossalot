@@ -743,8 +743,12 @@ def approvals_for(index):
             approved.setdefault(sha, []).extend(info["approvers"])
     for sha, info in index.items():
         for target in info["approves"]:
-            # Targets may predate the baseline, so resolve them through git, not the index
-            full = git_output(["rev-parse", "--verify", "--quiet", f"{target}^{{commit}}"])
+            # Targets may predate the baseline, so resolve them through git, not the index.
+            # A target that is not a revision (e.g. prose after "Approves:") approves nothing.
+            try:
+                full = git_output(["rev-parse", "--verify", "--quiet", f"{target}^{{commit}}"])
+            except subprocess.CalledProcessError:
+                full = ""
             if full and info["approvers"]:
                 approved.setdefault(full, []).extend(info["approvers"])
     return approved
