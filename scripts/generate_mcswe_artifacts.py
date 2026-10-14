@@ -767,7 +767,7 @@ def merge_approvals(baseline):
         sha, name, email, committer_email, subject = line.split("\x1f", 4)
         if committer_email != "noreply@github.com" or not subject.startswith("Merge pull request #"):
             continue
-        pr = subject.split()[2]
+        pr = subject.split()[3]  # "Merge pull request #N from owner/branch"
         approver = f"{name} <{email}> (merged {pr})"
         for merged in git_output(["rev-list", f"{sha}^1..{sha}^2"]).splitlines():
             approved.setdefault(merged, []).append(approver)
