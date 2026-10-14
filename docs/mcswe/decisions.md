@@ -219,3 +219,63 @@ decision: The O6.1 history check runs only for code that entered scope after com
 consequences: REQ-001 to REQ-031 are not flagged by the history check. Work from 4cff376 onward is checked. This baseline should be reviewed by the project owner before the next release audit.
 superseded_by: null
 ```
+
+## ADR-022 Single server entry point
+
+```yaml
+status: resolved
+context: The app users run is scripts/preview_server.go, which is outside the manifest's scope, untested, and built with the ignore tag. It registers the metrics, discovery, community, inbox and job routes, replaces the remediation handler, wraps the GitHub, registry and community HTTP clients, loads the GitHub token, starts an enrichment job and serves the UI. cmd/ossalot registers only the base routes and serves no UI, so the governed binary cannot run the app.
+decision: cmd/ossalot becomes the only server. It wires every API route, the scheduler, the startup enrichment job and the UI from one listener on the configured address (REQ-001 default 127.0.0.1:8080). Behavior the preview server adds moves into cmd/ and internal/ under the requirements that cite this decision. scripts/preview_server.go is deleted once nothing depends on it.
+consequences: The code users run is the code the audit governs. Running the app no longer depends on go run of an ignored script. Behavior not carried forward by ADR-024 disappears with the preview server.
+superseded_by: null
+```
+
+## ADR-023 UI assets embedded in the binary
+
+```yaml
+status: resolved
+context: web/dist/index.html imports its helper modules from /src/*.mjs at runtime, so the UI needs both web/dist and web/src served. The preview server read both from disk relative to its working directory, which breaks when the binary runs anywhere else, such as a container.
+decision: A Go package at web/embed.go embeds web/dist and the web/src modules with go:embed. The server serves web/dist at / and web/src at /src/, with .mjs files served as text/javascript. Test files under web/src are not embedded. web/embed.go joins the manifest's scope as the webassets component.
+consequences: One binary carries the UI and runs from any directory. UI changes need a rebuild of the binary. Phase 2 of the architecture plan replaces the embedded files with a Vite build output but keeps this serving contract.
+superseded_by: null
+```
+
+## ADR-024 Live provider behavior carried forward from the preview server
+
+```yaml
+status: resolved
+context: The preview server's HTTP wrappers do three kinds of work. Some fix real GitHub API behavior (default branches, missing head branches, existing files and pull requests, the workflow OAuth scope, traffic endpoints on repositories the token cannot push to). Some translate the internal /feeds and /downloads contracts to real public APIs. Some change data to pass filters, which the requirements do not allow - appending the search keyword to issue bodies and adding an enhancement label so issues pass the discovery threshold of 70 (REQ-023), rewriting language:GAP to "tsql OR antlr" for one repository, replacing the keyword "ossalot" with "open source maintainer", and guessing that a repository's npm package and Go module share its name during enrichment.
+decision: Carry forward, as explicit and tested behavior in internal/github, internal/engine/metrics and internal/engine/community, the GitHub API fixes, the traffic fallback, the zero-result issue search retry, and the registry and community feed translations. Do not carry forward the injected keywords, the synthetic labels, the repository-specific query rewrites or the package-name guesses. The community feed translation keeps its fixed per-platform scores and labels the lobsters platform, which has no search API and is answered from Ask HN, as Ask HN.
+consequences: Discovery shows only issues that meet REQ-023 on their real content, so fewer opportunities may appear than with the preview server. Package download counts appear only for packages the caller names. The fixed community scores remain heuristics, not measured relevance; a later decision can replace them.
+superseded_by: null
+```
+
+## ADR-025 GitHub token source
+
+```yaml
+status: resolved
+context: The preview server took the GitHub token from the GITHUB_TOKEN environment variable or from gh's ~/.config/gh/hosts.yml, and saved it into the workspace settings. Reading hosts.yml only works on a machine logged in to gh, and saving an environment token into the store copies a credential the operator did not ask to store. A deployed container gets its credentials from its environment.
+decision: GitHub requests use the workspace settings token when one is set, and otherwise the GITHUB_TOKEN environment variable. The environment token is never written to the store. gh's hosts.yml is not read.
+consequences: Deployments pass GITHUB_TOKEN in the environment. Local users who relied on gh login export GITHUB_TOKEN, for example from gh auth token. A token saved in settings still takes precedence.
+superseded_by: null
+```
+
+## ADR-026 Startup portfolio enrichment
+
+```yaml
+status: resolved
+context: The preview server registered a daily_portfolio_sync job that audits, collects metrics for, profiles, discovers issues for, scans communities for and generates playbooks for every tracked repository, and ran it once at startup. Nothing schedules it daily despite its name. The jobs API (REQ-030) lists it and can run it on demand.
+decision: cmd/ossalot registers the daily_portfolio_sync job with those six steps for each tracked repository and triggers it once in the background when the server starts. Metrics collection in this job names no packages (ADR-024). The name is kept because the jobs API exposes it. Periodic scheduling is out of scope for this decision.
+consequences: Data is fresh after each start without a manual run. Startup makes GitHub and community API calls for every tracked repository.
+superseded_by: null
+```
+
+## ADR-027 Workflow remediation templates
+
+```yaml
+status: resolved
+context: The standards auditor reports openssf_scorecard and release_automation checks (REQ-009), but the remediator has no file for them, so remediation returns "unsupported check key". The preview server answered these two keys itself with fixed GitHub Actions workflows.
+decision: The remediator returns fixed workflow drafts for openssf_scorecard (.github/workflows/scorecard.yml, running ossf/scorecard-action) and release_automation (.github/workflows/release.yml, creating a GitHub release on v* tags), without calling the LLM provider, with ci-prefixed commit messages.
+consequences: Every check the auditor can fail on these two keys has a remediation. Creating these files on GitHub needs a token with the workflow scope (REQ-046).
+superseded_by: null
+```

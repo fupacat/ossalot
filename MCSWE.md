@@ -4,6 +4,7 @@ scope:
   - cmd/
   - internal/
   - web/src/
+  - web/embed.go
   - .github/workflows/
 out_of_scope:
   - .gitignore
