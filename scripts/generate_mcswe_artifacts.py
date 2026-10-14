@@ -226,6 +226,23 @@ def parse_lcov(path):
     return coverage
 
 
+def parse_lcov_branches(path):
+    """Return {file: [(line, taken)]} for files with branch records; taken is 0 for an unexecuted branch."""
+    if not path.exists():
+        return {}
+    branches = {}
+    current = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("SF:"):
+            current = line[3:]
+            branches.setdefault(current, [])
+        elif line.startswith("BRDA:") and current:
+            fields = line[5:].split(",")
+            taken = fields[3]
+            branches[current].append((int(fields[0]), 0 if taken in ("0", "-") else int(taken)))
+    return branches
+
+
 def region_lines(regions):
     """All (file, line) pairs covered by the given `file:start-end` spans."""
     lines = set()
@@ -280,8 +297,7 @@ class Context:
         self.scope = manifest.get("scope", [])
         self.junit = parse_junit_results()
         self.full = parse_lcov(REPORTS / "lcov.info")
-        self.branch_measured = bool((REPORTS / "lcov.info").exists() and "\nBRDA:" in
-                                    (REPORTS / "lcov.info").read_text(encoding="utf-8"))
+        self.branches = parse_lcov_branches(REPORTS / "lcov.info")
         self.own = {}
         for req_id, tlist in tests.items():
             self.own[req_id] = parse_lcov(REPORTS / "per-req" / f"{run_evidence.per_req_key(tlist)}.lcov")
@@ -293,6 +309,9 @@ class Context:
         self.dirty_scope = ""
         self.stable = True
         self.cleaned = False
+        self.exception_count = 0
+        self.statuses = {}
+        self.matrix_rows = 0
 
 
 def requirement_coverage(req_id, ctx):
@@ -440,8 +459,15 @@ def evaluate(ctx):
                 for ln, count in sorted(lines_map.items()):
                     if count == 0:
                         full_uncovered.append(f"{f}:{ln}")
-    branch_problem = [] if ctx.branch_measured else [
-        "branch coverage is not measured (Go reports statements only; Node LCOV has no branch records)"]
+    branch_problem = []
+    if ctx.full is not None:
+        for f in sorted(ctx.full):
+            if not any(f.startswith(s) for s in ctx.scope):
+                continue
+            if f not in ctx.branches:
+                branch_problem.append(f"branch coverage is not measured for {f}")
+            else:
+                branch_problem += [f"branch not taken: {f}:{ln}" for ln, taken in ctx.branches[f] if taken == 0]
     check("O2.4", ([f"uncovered line {u}" for u in full_uncovered[:50]] + branch_problem),
           [u.split(":")[0] for u in full_uncovered[:50]])
     check("O2.5", ([f"uncovered line {u}" for u in full_uncovered[:50]] + branch_problem),
@@ -512,7 +538,6 @@ def evaluate(ctx):
           [str(i["definition"]) for i in ifaces.values()])
     not_automated("O7.3", "data exchanged between components is not checked for schemas")
     check("O7.4", [f"{i_id} names no checker" for i_id, i in ifaces.items() if not i.get("checker")])
-    failed_checkers = [c for c, rc in ctx.checkers if rc != 0]
     check("O7.5", [f"checker failed (exit {rc}): {c}" for c, rc in ctx.checkers if rc != 0])
     not_applicable("O7.6")
 
@@ -740,7 +765,7 @@ def write_audit_record(ctx, commit_sha, clauses, findings):
     return record["result"]
 
 
-def build_context(commit=None):
+def build_context(run_failed=(), checkers=(), commit=None, cleaned=False):
     manifest = load_manifest()
     reqs = parse_requirements()
     ifaces = parse_interfaces()
@@ -750,8 +775,13 @@ def build_context(commit=None):
     ctx = Context(manifest, reqs, ifaces, decisions, regions, tests, declared, malformed)
     ctx.exception_count = len(re.findall(
         r"^#+\s*EX-\d+", (ROOT / manifest["documents"]["exceptions"]).read_text(encoding="utf-8"), re.MULTILINE))
+    ctx.run_failed = set(run_failed)
+    ctx.checkers = list(checkers)
+    ctx.commit = commit
+    ctx.cleaned = cleaned
+    ctx.head = git_output(["rev-parse", "HEAD"])
+    ctx.dirty_scope = git_output(["status", "--porcelain", "--", *manifest.get("scope", [])])
     ctx.statuses = {r: requirement_status(r, ctx) for r in reqs}
-    ctx.matrix_rows = 0
     return ctx
 
 
@@ -770,8 +800,7 @@ def audit(commit_sha):
         sys.exit("in-scope files have uncommitted changes; audit stopped (audit step 1)")
 
     # Step 3: every checker named by an interface
-    ifaces = parse_interfaces()
-    checkers = [(c, run_shell(c)) for c in unique_checkers(ifaces)]
+    checkers = [(c, run_shell(c)) for c in unique_checkers(parse_interfaces())]
 
     # Step 4: remove old reports, then run the manifest's test and coverage commands
     for name in ("junit.xml", "lcov.info", "coverage.out", "js-lcov.info"):
@@ -781,41 +810,26 @@ def audit(commit_sha):
     run_shell(manifest["evidence"]["test_command"])
     run_shell(manifest["evidence"]["coverage_command"])
 
-    ctx = build_context()
-    ctx.commit = commit_sha
-    ctx.checkers = checkers
-    ctx.cleaned = True
-
     # Step 5: each requirement's tests run alone, so coverage is attributed per requirement (O2.2)
+    tests = scan_anchors(scope)[1]
     per_req_template = manifest["evidence"]["per_requirement_command"]
-    for req_id, tlist in sorted(ctx.tests.items()):
-        if not tlist:
-            continue
+    run_failed = set()
+    for req_id, tlist in sorted(tests.items()):
         command = per_req_template.replace("{tests}", " ".join(shlex.quote(t) for t in tlist))
         if run_shell(command) != 0:
-            ctx.run_failed.add(req_id)
-    ctx.own = {}
-    for req_id, tlist in ctx.tests.items():
-        ctx.own[req_id] = run_evidence_lcov(tlist)
-    ctx.junit = parse_junit_results()
-    ctx.full = parse_lcov(REPORTS / "lcov.info")
-    ctx.branch_measured = bool(ctx.full is not None and "\nBRDA:" in (REPORTS / "lcov.info").read_text(encoding="utf-8"))
-    ctx.statuses = {r: requirement_status(r, ctx) for r in ctx.reqs}
+            run_failed.add(req_id)
 
-    # Step 7: nothing in scope changed during the run
-    ctx.head = git_output(["rev-parse", "HEAD"])
-    ctx.dirty_scope = git_output(["status", "--porcelain", "--", *scope])
-    ctx.stable = ctx.head == head and not ctx.dirty_scope
+    ctx = build_context(run_failed, checkers, commit_sha, cleaned=True)
 
-    # Step 8: outputs
+    # Step 7: nothing in scope or HEAD changed during the run
+    ctx.stable = git_output(["rev-parse", "HEAD"]) == head and not git_output(
+        ["status", "--porcelain", "--", *scope])
+
+    # Step 8: outputs. The matrix is written first; it does not depend on the clauses.
+    write_trace_matrix(ctx, ctx.reqs, ctx.ifaces)
     clauses, findings = evaluate(ctx)
-    write_trace_matrix(ctx, ctx.reqs, ifaces)
     result = write_audit_record(ctx, commit_sha, clauses, findings)
     print(f"audit {commit_sha}: {result} ({len(findings)} findings)")
-
-
-def run_evidence_lcov(tlist):
-    return parse_lcov(REPORTS / "per-req" / f"{run_evidence.per_req_key(tlist)}.lcov")
 
 
 if __name__ == "__main__":
