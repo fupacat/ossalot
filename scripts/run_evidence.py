@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 REPORTS = ROOT / "reports"
 GO_BIN = shutil.which("go") or "/home/eric/.gemini/antigravity/brain/dc8f5867-fc68-42d2-94ac-0a94391363ac/scratch/go/bin/go"
 MODULE_PREFIX = "github.com/eric/ossalot/"
+BCOV_MODULE = "github.com/fupacat/bcov"
+BCOV_VERSION = "v0.1.0"
 JS_NAME_SPECIALS = re.compile(r"[\\^$.*+?()\[\]{}|/]")
 
 
@@ -21,6 +23,22 @@ def get_env():
     env = os.environ.copy()
     go_dir = str(Path(GO_BIN).parent)
     env["PATH"] = f"{go_dir}:{env.get('PATH', '')}"
+    return env
+
+
+def bcov_env():
+    """Environment for fetching the pinned bcov module from its private repository.
+
+    Go fetches private modules through git. When the GitHub CLI is installed, its login is used as the
+    git credential helper for this process only, so no global git configuration changes.
+    """
+    env = get_env()
+    env["GOPRIVATE"] = BCOV_MODULE.rsplit("/", 1)[0] + "/*"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    if shutil.which("gh"):
+        env["GIT_CONFIG_COUNT"] = "1"
+        env["GIT_CONFIG_KEY_0"] = "credential.https://github.com.helper"
+        env["GIT_CONFIG_VALUE_0"] = "!gh auth git-credential"
     return env
 
 
@@ -233,16 +251,16 @@ def run_coverage():
 def run_go_branch_coverage(lcov_path):
     """Count every outcome of every Go decision and add the results to lcov_path as BRDA records.
 
-    tools/bcov instruments copies of the in-scope packages under reports/_bcov. The copies are applied
+    bcov instruments copies of the in-scope packages under reports/_bcov. The copies are applied
     with -overlay, so the repository tree is not modified. The leading underscore keeps ./... from
     picking up the copies as packages.
     """
     out = REPORTS / "_bcov"
     shutil.rmtree(out, ignore_errors=True)
     subprocess.run(
-        [GO_BIN, "run", ".", "-root", str(ROOT), "-out", str(out)],
-        cwd=ROOT / "tools" / "bcov",
-        env=get_env(),
+        [GO_BIN, "run", f"{BCOV_MODULE}@{BCOV_VERSION}", "-root", str(ROOT), "-out", str(out)],
+        cwd=ROOT,
+        env=bcov_env(),
         check=True,
     )
     hits_dir = out / "hits"
