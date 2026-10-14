@@ -12,6 +12,8 @@ out_of_scope:
   - go.mod
   - reports/
   - scripts/
+  - web/app/          # ADR-032: page script, enters scope tab by tab in phase 4
+  - web/index.html    # ADR-032: page markup
   - web/dist/
 documents:
   decisions: docs/mcswe/decisions.md

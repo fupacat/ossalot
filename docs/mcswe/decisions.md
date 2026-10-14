@@ -279,3 +279,53 @@ decision: The remediator returns fixed workflow drafts for openssf_scorecard (.g
 consequences: Every check the auditor can fail on these two keys has a remediation. Creating these files on GitHub needs a token with the workflow scope (REQ-046).
 superseded_by: null
 ```
+
+## ADR-028 Vite build for the frontend
+
+```yaml
+status: resolved
+context: The UI exists only as hand-edited build output, web/dist/index.html, with no source. Tailwind comes from the Play CDN and compiles styles in the browser, so pages need the CDN at runtime. There is no dev server or hot reload. This is phase 2 of docs/architecture-plan.md.
+decision: web/ becomes a Vite project. The markup moves to web/index.html and the page's inline module script moves unchanged to web/app/main.js; the web/src models it imports are bundled. npm run build writes web/dist/, which is generated and ignored by git except for a placeholder file. Tailwind 4 compiles at build time through its Vite plugin, scanning web/index.html, web/app/ and web/src/, with the page's customizations (class dark mode, slate-850 and slate-950) carried into the CSS entry. The page's current look is an iteration mock with no design intent, so differences from the Play CDN's Tailwind 3 output, such as the version 4 palette, are accepted. TypeScript is configured for new code, but no file is converted in this phase. The model tests stay on node --test until the TypeScript port in phase 4 moves them to Vitest.
+consequences: UI changes edit source, and web/dist is regenerated. Pages render without the Tailwind CDN. Colors and spacing may shift slightly with Tailwind 4; the design phase sets the real look. A Go build embeds the real UI only after npm ci and npm run build. Moving the model tests to Vitest is deferred from phase 2, where the architecture plan placed it.
+superseded_by: null
+```
+
+## ADR-029 Serving the built UI
+
+```yaml
+status: resolved
+context: ADR-023 embeds web/dist and the web/src modules and serves /src/ because the page imported the modules at runtime. Vite bundles those modules into web/dist/assets/, so /src/ is no longer requested. web/dist is now generated, and go:embed refuses to compile a pattern that matches no files.
+decision: web/embed.go embeds all of web/dist, including a committed placeholder file, so Go compiles on a fresh clone without a frontend build. The server serves web/dist at / and stops serving /src/; this replaces the /src/ part of ADR-023, whose decision to embed the UI in the binary stands. When the embedded build has no index.html, / answers 503 with a message naming the frontend build command.
+consequences: go build and go test work without Node. A binary built without the frontend build serves the 503 message until it is rebuilt with the UI. Release builds, in CI and later in the container, run the frontend build first.
+superseded_by: null
+```
+
+## ADR-030 Frontend build in CI
+
+```yaml
+status: resolved
+context: CI (REQ-032) builds the test binary with go build. With web/dist generated, a binary built without the frontend build serves only the 503 message (ADR-029).
+decision: The CI workflow runs npm ci and npm run build in web/ after setting up Node and before the evidence steps and the Go build, so the test artifact embeds the real UI.
+consequences: CI depends on web/package-lock.json being committed. A broken frontend build fails CI before the Go steps run.
+superseded_by: null
+```
+
+## ADR-031 Local development loop
+
+```yaml
+status: resolved
+context: Iterating on the UI needs hot reload. Today every UI change means editing the built file and reloading against a running Go server.
+decision: make dev runs the Go server (cmd/ossalot on 127.0.0.1:8080) and the Vite dev server (127.0.0.1:5173) together. Vite proxies /api to :8080, updates styles in place and reloads the page when the script changes. make build runs the frontend build, then go build. The Makefile and the web build configuration (package.json, package-lock.json, and the Vite and TypeScript configuration) are tooling outside the manifest's scope, like scripts/.
+consequences: During development the UI is opened on :5173; :8080 serves whatever UI the running binary embeds. Tooling changes need no requirement amendments.
+superseded_by: null
+```
+
+## ADR-032 The page script stays outside scope until it is ported
+
+```yaml
+status: resolved
+context: Moving the inline script (about 780 lines) and the markup into web/ turns them into source. The manifest's scope covers web/src/, so placing them there would require requirements, anchors and full line and branch coverage for nine tabs whose code phase 4 rewrites in React, tab by tab. Today the same code is outside scope as web/dist.
+decision: The markup lives in web/index.html and the script in web/app/; both are listed as out of scope. Each tab enters scope when phase 4 ports it, with its requirements defined first. Logic that needs governance before then moves into the web/src models.
+consequences: This phase does not change how much of the page is governed; the existing gap becomes explicit in the manifest instead of hidden in a build output.
+superseded_by: null
+```
