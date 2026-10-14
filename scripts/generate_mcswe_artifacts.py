@@ -505,9 +505,10 @@ def evaluate(ctx):
 
     # O4 (approvals are recorded in review history, which the tool does not read)
     index = commit_index(ctx.manifest.get("definitions_first_from"))
-    approval_gaps = approval_problems(index, ctx.scope)
+    approval_gaps, ctx.pending_approval = approval_problems(
+        index, ctx.scope, ctx.manifest.get("definitions_first_from"), mainline_ref())
     check("O4.1", approval_gaps)
-    res["O4.4"] = res["O4.1"]  # self-approvals are recorded by the approver trailer naming the author
+    res["O4.4"] = res["O4.1"]  # self-approvals are recorded by an approver (merger or trailer) who is the author
     not_automated("O4.2", "independence of approvers is not checked")
     not_applicable("O4.3")
     check("O4.5", [] if all(a != "unapproved" for a in ctx.approval_text.values())
@@ -735,9 +736,47 @@ def required_change(files, scope):
     return False
 
 
-def approvals_for(index):
-    """{revision: [approver, ...]} from each commit's own trailers and from later Approves: trailers."""
+def mainline_ref():
+    """The branch that merged pull requests land on: origin/main, else main, else None."""
+    for ref in ("origin/main", "main"):
+        try:
+            if git_output(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]):
+                return ref
+        except subprocess.CalledProcessError:
+            continue
+    return None
+
+
+def is_pending(sha, mainline):
+    """True if sha has not reached the mainline yet, so its pull request can still approve it (ADR-033)."""
+    return mainline is not None and not is_ancestor(sha, mainline)
+
+
+def merge_approvals(baseline):
+    """{revision: [approver, ...]} for commits brought in by pull requests merged on GitHub (ADR-033).
+
+    A merge on HEAD's first-parent history, committed by GitHub with a "Merge pull request #N" subject,
+    approves every commit it brought in. The approver is the merge's author: the person who merged.
+    Local merges are committed by their author, not GitHub, so they approve nothing.
+    """
     approved = {}
+    if not baseline:
+        return approved
+    raw = git_output(["log", "--first-parent", "--merges", "--format=%H%x1f%an%x1f%ae%x1f%ce%x1f%s", f"{baseline}..HEAD"])
+    for line in raw.splitlines():
+        sha, name, email, committer_email, subject = line.split("\x1f", 4)
+        if committer_email != "noreply@github.com" or not subject.startswith("Merge pull request #"):
+            continue
+        pr = subject.split()[2]
+        approver = f"{name} <{email}> (merged {pr})"
+        for merged in git_output(["rev-list", f"{sha}^1..{sha}^2"]).splitlines():
+            approved.setdefault(merged, []).append(approver)
+    return approved
+
+
+def approvals_for(index, baseline=None):
+    """{revision: [approver, ...]} from pull request merges, each commit's own trailers and later Approves: trailers."""
+    approved = merge_approvals(baseline)
     for sha, info in index.items():
         if info["approvers"]:
             approved.setdefault(sha, []).extend(info["approvers"])
@@ -754,25 +793,27 @@ def approvals_for(index):
     return approved
 
 
-def approval_problems(index, scope):
-    """Commits that change governed content with no approver (O4.1)."""
-    approved = approvals_for(index)
-    problems = []
+def approval_problems(index, scope, baseline=None, mainline=None):
+    """Commits that change governed content with no approver (O4.1), and those still awaiting their merge."""
+    approved = approvals_for(index, baseline)
+    problems, pending = [], []
     for sha, info in index.items():
-        if not required_change(info["files"], scope):
+        if not required_change(info["files"], scope) or approved.get(sha):
             continue
-        if not approved.get(sha):
-            problems.append(f"{sha[:7]} changes governed content with no Approved-by trailer")
-    return problems
+        if is_pending(sha, mainline):
+            pending.append(sha[:7])
+        else:
+            problems.append(f"{sha[:7]} changes governed content and was not approved by a pull request merge or an Approved-by trailer")
+    return problems, pending
 
 
-def requirement_approval(req_id, defined, index, approved):
-    """Approval column text for a requirement: the approver of its definition, or unapproved."""
+def requirement_approval(req_id, defined, index, approved, mainline=None):
+    """Approval column text for a requirement: the approver of its definition, pending merge, or unapproved."""
     if defined is None:
         return "unapproved"
     approvers = approved.get(defined) or []
     if not approvers:
-        return "unapproved"
+        return "pending merge" if is_pending(defined, mainline) else "unapproved"
     author_email = git_output(["log", "-1", "--format=%ae", defined])
     first = approvers[0]
     if author_email and f"<{author_email}>" in first:
@@ -808,12 +849,14 @@ def write_trace_matrix(ctx, reqs, ifaces):
         for rid in info["requirements"]:
             ifaces_by_req.setdefault(rid, []).append(if_id)
 
-    index = commit_index(ctx.manifest.get("definitions_first_from"))
-    approved = approvals_for(index)
+    baseline = ctx.manifest.get("definitions_first_from")
+    index = commit_index(baseline)
+    approved = approvals_for(index, baseline)
+    mainline = mainline_ref()
     approval_text = {}
     for req_id in reqs:
         defined = first_commit(["-S", f"{req_id} ", "--", "docs/mcswe/requirements.md"])
-        approval_text[req_id] = requirement_approval(req_id, defined, index, approved)
+        approval_text[req_id] = requirement_approval(req_id, defined, index, approved, mainline)
     ctx.approval_text = approval_text
     lines = [
         "# Trace matrix",
@@ -884,6 +927,7 @@ def write_audit_record(ctx, commit_sha, clauses, findings):
         "evidence": evidence_list,
         "exceptions": {"count": ctx.exception_count, "lines_covered": 0},
         "open_emergencies": [],
+        "pending_approval": getattr(ctx, "pending_approval", []),
         "clauses": clauses,
         "findings": findings,
         "result": "fail" if findings else "pass",

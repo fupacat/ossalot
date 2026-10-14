@@ -279,3 +279,13 @@ decision: The remediator returns fixed workflow drafts for openssf_scorecard (.g
 consequences: Every check the auditor can fail on these two keys has a remediation. Creating these files on GitHub needs a token with the workflow scope (REQ-046).
 superseded_by: null
 ```
+
+## ADR-033 Approval is the owner's pull request merge
+
+```yaml
+status: resolved
+context: Approvals were recorded as Approved-by and Approves trailers on extra commits. For a solo project that meant an empty approval commit for every change, written by the agent at the owner's request, and a merge that raced ahead of its approval left main unapproved (#7, #8). Merging a reviewed pull request on GitHub is already the owner's explicit acceptance of the change.
+decision: A pull request merged on GitHub approves every commit it brings in. The audit reads approvals from merge commits on the mainline's first-parent history that GitHub committed with a "Merge pull request #N" subject; the merge's author is the approver, and an approver who wrote the change is recorded as a self-approval (O4.4). Commits that have not reached the mainline are reported as pending approval, not as findings. Commits that reach the mainline without a pull request merge remain unapproved findings. Approved-by trailers stay valid. Agents do not merge pull requests unless the owner asks for that specific merge, and do not write approval trailers.
+consequences: No approval commits. The audit before a merge reports the branch's own commits as pending. Every change to main goes through a pull request merged on GitHub; squash and rebase merges are not recognized and would show as unapproved. Earlier merged pull requests now count as approvals, which clears the outstanding O4.1 on 91c4f12.
+superseded_by: null
+```
