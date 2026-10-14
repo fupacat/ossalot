@@ -28,6 +28,7 @@ evidence:
 safety_critical: []         # Resolved in ADR-002: no safety-critical components
 generators: []
 audit_schedule: before each release
+definitions_first_from: "4cff376"   # ADR-021: O6.1 is checked only for code added after this commit
 banned_terms_extra: []
 ---
 
