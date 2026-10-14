@@ -311,6 +311,7 @@ class Context:
         self.exception_count = 0
         self.statuses = {}
         self.matrix_rows = 0
+        self.approval_text = {}
 
 
 def requirement_coverage(req_id, ctx):
@@ -503,11 +504,14 @@ def evaluate(ctx):
     check("O3.8", [] if ctx.stable else ["in-scope files or HEAD changed during the run"])
 
     # O4 (approvals are recorded in review history, which the tool does not read)
-    not_automated("O4.1", "approvals are not read from review records")
+    index = commit_index(ctx.manifest.get("definitions_first_from"))
+    approval_gaps = approval_problems(index, ctx.scope)
+    check("O4.1", approval_gaps)
+    res["O4.4"] = res["O4.1"]  # self-approvals are recorded by the approver trailer naming the author
     not_automated("O4.2", "independence of approvers is not checked")
     not_applicable("O4.3")
-    not_automated("O4.4", "self-approvals are not recorded from review data")
-    not_automated("O4.5", "the matrix approval column is not derived from approval data")
+    check("O4.5", [] if all(a != "unapproved" for a in ctx.approval_text.values())
+          else [f"{r} has no approval" for r, a in sorted(ctx.approval_text.items()) if a == "unapproved"])
     res["O4.6"] = "pass"
     not_automated("O4.7", "whether tests check intent is a review question")
 
@@ -522,8 +526,8 @@ def evaluate(ctx):
     not_automated("O5.5", "identifier reuse is not checked against history")
 
     # O6
-    res["O6.1"] = "fail"
-    finding("O6.1", "not checked by the audit tool: definitions-before-code order is not read from history")
+    problems = definition_order_problems(reqs, ctx.scope, ctx.manifest.get("definitions_first_from"))
+    check("O6.1", problems, [p.split(" ")[0] for p in problems])
     res["O6.2"] = res["O1.1"]
     if res["O6.2"] == "fail":
         for problem in source_problems:
@@ -655,7 +659,7 @@ def evaluate(ctx):
     check("D8.1", [] if rows == len(reqs) else [f"matrix has {rows} rows for {len(reqs)} requirements"])
     check("D8.2", [f"status {ctx.statuses[r]['status']} is not allowed for {r}"
                    for r in sorted(reqs) if ctx.statuses[r]["status"] not in MATRIX_STATUSES])
-    not_automated("D8.3", "the matrix approval column is not derived from approval data")
+    res["D8.3"] = res["O4.5"]  # the approval column is derived from the approver trailers
     res["D8.4"] = "pass"  # the matrix lists exceptions and out-of-scope paths
 
     # D9
@@ -680,12 +684,133 @@ def evaluate(ctx):
 
 # --- Outputs -----------------------------------------------------------------
 
+def first_commit(args):
+    """Oldest commit matching the git log arguments, or None."""
+    shas = git_output(["log", "--reverse", "--format=%H", *args]).splitlines()
+    return shas[0] if shas else None
+
+
+def is_ancestor(older, newer):
+    return subprocess.run(["git", "merge-base", "--is-ancestor", older, newer],
+                          cwd=ROOT, capture_output=True).returncode == 0
+
+
+def commit_index(baseline):
+    """Commits after the enforcement baseline: author, approvers, approved revisions and changed paths."""
+    index = {}
+    if not baseline:
+        return index
+    rev_range = f"{baseline}..HEAD"
+    raw = git_output(["log", "--reverse", "--format=%H%x1f%an%x1f%ae%x1f%B%x1e", rev_range])
+    for entry in raw.split("\x1e"):
+        entry = entry.strip("\n")
+        if not entry:
+            continue
+        sha, author_name, author_email, body = entry.split("\x1f", 3)
+        approvers = []
+        approves = []
+        for line in body.splitlines():
+            if line.startswith("Approved-by:"):
+                approvers.append(line[len("Approved-by:"):].strip())
+            elif line.startswith("Approves:"):
+                approves.append(line[len("Approves:"):].strip())
+        files = git_output(["diff-tree", "--no-commit-id", "--name-only", "-r", sha]).splitlines()
+        index[sha] = {
+            "author": (author_name, author_email),
+            "approvers": approvers,
+            "approves": approves,
+            "files": files,
+        }
+    return index
+
+
+def required_change(files, scope):
+    """True if a commit touches governed code or a required document (generated documents excluded)."""
+    generated = ("docs/mcswe/trace-matrix.md", "docs/mcswe/audits/")
+    for f in files:
+        if f.startswith(generated):
+            continue
+        if f == "MCSWE.md" or f.startswith("docs/mcswe/") or any(f.startswith(s) for s in scope):
+            return True
+    return False
+
+
+def approvals_for(index):
+    """{revision: [approver, ...]} from each commit's own trailers and from later Approves: trailers."""
+    approved = {}
+    for sha, info in index.items():
+        if info["approvers"]:
+            approved.setdefault(sha, []).extend(info["approvers"])
+    for sha, info in index.items():
+        for target in info["approves"]:
+            # Targets may predate the baseline, so resolve them through git, not the index
+            full = git_output(["rev-parse", "--verify", "--quiet", f"{target}^{{commit}}"])
+            if full and info["approvers"]:
+                approved.setdefault(full, []).extend(info["approvers"])
+    return approved
+
+
+def approval_problems(index, scope):
+    """Commits that change governed content with no approver (O4.1)."""
+    approved = approvals_for(index)
+    problems = []
+    for sha, info in index.items():
+        if not required_change(info["files"], scope):
+            continue
+        if not approved.get(sha):
+            problems.append(f"{sha[:7]} changes governed content with no Approved-by trailer")
+    return problems
+
+
+def requirement_approval(req_id, defined, index, approved):
+    """Approval column text for a requirement: the approver of its definition, or unapproved."""
+    if defined is None:
+        return "unapproved"
+    approvers = approved.get(defined) or []
+    if not approvers:
+        return "unapproved"
+    author_email = git_output(["log", "-1", "--format=%ae", defined])
+    first = approvers[0]
+    if author_email and f"<{author_email}>" in first:
+        return f"self (O4.4) {first}"
+    return first
+
+
+def definition_order_problems(reqs, scope, enforced_from=None):
+    """Requirements whose code entered scope before, or in the same commit as, their definition (O6.1, P1.1).
+
+    Only code that entered scope after enforced_from (ADR-021) is checked. Earlier history is not tested.
+    """
+    problems = []
+    for req_id in sorted(reqs):
+        defined = first_commit(["-S", f"{req_id} ", "--", "docs/mcswe/requirements.md"])
+        implemented = first_commit(["-G", f"TRACEABILITY_MAPPING:.*{req_id}([^0-9]|$)", "--", *scope])
+        if implemented is None:
+            continue  # no code yet; the status column already shows it as unverified
+        if enforced_from and is_ancestor(implemented, enforced_from):
+            continue  # entered scope before the check was enforced
+        if defined is None:
+            problems.append(f"{req_id} has code in scope but no definition in the requirements history")
+        elif defined == implemented:
+            problems.append(f"{req_id} was defined and implemented in the same commit {defined[:7]}")
+        elif not is_ancestor(defined, implemented):
+            problems.append(f"{req_id} code ({implemented[:7]}) entered scope before its definition ({defined[:7]})")
+    return problems
+
+
 def write_trace_matrix(ctx, reqs, ifaces):
     ifaces_by_req = {}
     for if_id, info in ifaces.items():
         for rid in info["requirements"]:
             ifaces_by_req.setdefault(rid, []).append(if_id)
 
+    index = commit_index(ctx.manifest.get("definitions_first_from"))
+    approved = approvals_for(index)
+    approval_text = {}
+    for req_id in reqs:
+        defined = first_commit(["-S", f"{req_id} ", "--", "docs/mcswe/requirements.md"])
+        approval_text[req_id] = requirement_approval(req_id, defined, index, approved)
+    ctx.approval_text = approval_text
     lines = [
         "# Trace matrix",
         "",
@@ -702,8 +827,9 @@ def write_trace_matrix(ctx, reqs, ifaces):
         status = ctx.statuses[req_id]
         status_str = status["status"] if status["status"] in MATRIX_STATUSES else "failing"
         cov_str = "n/a" if status["coverage"] is None else f"{status['coverage']:.1f}% line"
+        approval = approval_text.get(req_id, "unapproved")
         lines.append(
-            f"| {req_id} | {r['source']} | {ifs} | {regs} | {tests_str} | {cov_str} | self (O4.4) | {status_str} |"
+            f"| {req_id} | {r['source']} | {ifs} | {regs} | {tests_str} | {cov_str} | {approval} | {status_str} |"
         )
     lines.extend(
         [
