@@ -227,6 +227,63 @@ def run_coverage():
     convert_coverprofile_to_lcov(cov_out, REPORTS / "lcov.info")
     with (REPORTS / "lcov.info").open("a", encoding="utf-8") as combined:
         combined.write(drop_test_files(js_lcov.read_text(encoding="utf-8")))
+    run_go_branch_coverage(REPORTS / "lcov.info")
+
+
+def run_go_branch_coverage(lcov_path):
+    """Count every outcome of every Go decision and add the results to lcov_path as BRDA records.
+
+    tools/bcov instruments copies of the in-scope packages under reports/_bcov. The copies are applied
+    with -overlay, so the repository tree is not modified. The leading underscore keeps ./... from
+    picking up the copies as packages.
+    """
+    out = REPORTS / "_bcov"
+    shutil.rmtree(out, ignore_errors=True)
+    subprocess.run(
+        [GO_BIN, "run", ".", "-root", str(ROOT), "-out", str(out)],
+        cwd=ROOT / "tools" / "bcov",
+        env=get_env(),
+        check=True,
+    )
+    hits_dir = out / "hits"
+    hits_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [GO_BIN, "test", "-vet=off", "-count=1", "-overlay", str(out / "overlay.json"), "./..."],
+        cwd=ROOT,
+        env={**get_env(), "BCOV_OUT": str(hits_dir)},
+        check=True,
+    )
+
+    manifest = json.loads((out / "decisions.json").read_text(encoding="utf-8"))
+    branches_by_file = {}
+    for pkg in manifest["packages"]:
+        hit_file = hits_dir / pkg["hits"]
+        if not hit_file.exists():
+            raise RuntimeError(f"no branch hit counts for {pkg['dir']}: the test hook did not run")
+        hits = {}
+        for line in hit_file.read_text(encoding="utf-8").splitlines():
+            index, count = line.split()
+            hits[int(index)] = int(count)
+        for d in pkg["decisions"]:
+            for i in range(d["branches"]):
+                taken = hits[d["base"] + i]
+                branches_by_file.setdefault(d["file"], []).append((d["line"], d["base"], i, taken))
+
+    records = lcov_path.read_text(encoding="utf-8").split("end_of_record\n")
+    merged = []
+    for record in records:
+        if not record.strip():
+            continue
+        lines = record.splitlines()
+        file_name = next((l[3:] for l in lines if l.startswith("SF:")), None)
+        extra = branches_by_file.get(file_name, [])
+        if extra:
+            lines = [l for l in lines if not l.startswith(("BRDA:", "BRF:", "BRH:"))]
+            brda = [f"BRDA:{ln},{block},{branch},{taken}" for ln, block, branch, taken in extra]
+            hit = sum(1 for *_, taken in extra if taken > 0)
+            lines += brda + [f"BRF:{len(extra)}", f"BRH:{hit}"]
+        merged.append("\n".join(lines + ["end_of_record"]) + "\n")
+    lcov_path.write_text("".join(merged), encoding="utf-8")
 
 
 def run_per_req(test_ids):
