@@ -20,6 +20,7 @@ This document points to each interface's native definition; it never restates it
 | scheduler | `internal/scheduler/` |
 | api | `internal/api/` |
 | web | `web/src/` |
+| webassets | `web/embed.go` |
 
 ## Interfaces
 
@@ -405,5 +406,102 @@ checker: node --check web/src/sonar_model.mjs
 data_schema: null
 ```
 
+## IF-039 Single server assembly
 
+```yaml
+component: cli
+definition: cmd/ossalot/app.go#buildHandler
+requirements: [REQ-039, REQ-040]
+checker: go vet ./cmd/ossalot
+data_schema: null
+```
 
+## IF-040 Embedded UI assets
+
+```yaml
+component: webassets
+definition: web/embed.go#Assets
+requirements: [REQ-040]
+checker: go vet ./web
+data_schema: null
+```
+
+## IF-041 GitHub token resolution
+
+```yaml
+component: cli
+definition: cmd/ossalot/app.go#resolveGitHubToken
+requirements: [REQ-041]
+checker: go vet ./cmd/ossalot
+data_schema: internal/db/store.go#WorkspaceSettings
+```
+
+## IF-042 Startup portfolio enrichment job
+
+```yaml
+component: cli
+definition: cmd/ossalot/app.go#registerEnrichmentJob
+requirements: [REQ-042]
+checker: go vet ./cmd/ossalot
+data_schema: internal/scheduler/runner.go#ScanJobRecord
+```
+
+## IF-043 Remediation pull request flow
+
+```yaml
+component: github
+definition: internal/github/client.go#Client.CreateRemediationPR
+requirements: [REQ-043, REQ-044, REQ-045, REQ-046]
+checker: go vet ./internal/github
+data_schema: internal/github/client.go#PullRequestRequest
+```
+
+## IF-044 Traffic fallback for restricted repositories
+
+```yaml
+component: github
+definition: internal/github/traffic.go#Client.FetchTrafficSnapshot
+requirements: [REQ-047]
+checker: go vet ./internal/github
+data_schema: internal/github/traffic.go#TrafficSnapshot
+```
+
+## IF-045 Issue search retry
+
+```yaml
+component: github
+definition: internal/github/search.go#Client.SearchIssues
+requirements: [REQ-048]
+checker: go vet ./internal/github
+data_schema: internal/github/search.go#IssueCandidate
+```
+
+## IF-046 Live package registry adapter
+
+```yaml
+component: metrics
+definition: internal/engine/metrics/live_registry.go#LiveRegistryTransport
+requirements: [REQ-049]
+checker: go vet ./internal/engine/metrics
+data_schema: null
+```
+
+## IF-047 Live community feed adapter
+
+```yaml
+component: community
+definition: internal/engine/community/live_feeds.go#LiveFeedTransport
+requirements: [REQ-050]
+checker: go vet ./internal/engine/community
+data_schema: internal/engine/community/scanner.go#communityFeedItem
+```
+
+## IF-048 Workflow remediation templates
+
+```yaml
+component: standards
+definition: internal/engine/standards/auditor.go#BuildRemediationDraft
+requirements: [REQ-051]
+checker: go vet ./internal/engine/standards
+data_schema: internal/engine/standards/auditor.go#RemediationDraft
+```

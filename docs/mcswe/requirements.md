@@ -534,5 +534,184 @@ acceptance:
   expected_output: "tokenURL=https://sonarcloud.io/account/security secretURL=https://github.com/owner/repo/settings/secrets/actions/new secretName=SONAR_TOKEN"
 ```
 
+REQ-039 The CLI runner SHALL serve the base API routes (REQ-011), the metrics routes (REQ-018), the profiling and discovery routes (REQ-024) and the community, inbox and job routes (REQ-030) from one listener.
 
+```yaml
+source: ADR-022
+status: active
+acceptance:
+  kind: categorical
+  precondition: Run is called with a stubbed listener that captures the handler and a temporary database path.
+  action: Send GET /api/v1/health, GET /api/v1/opportunities and GET /api/v1/jobs to the captured handler.
+  expected: Each request returns status 200.
+  method: test
+  expected_output: "health=200 opportunities=200 jobs=200"
+```
 
+REQ-040 The CLI runner SHALL serve the embedded `web/dist` files at `/` and the embedded `web/src` modules at `/src/`, with `.mjs` files served with content type `text/javascript`.
+
+```yaml
+source: ADR-023
+status: active
+acceptance:
+  kind: categorical
+  precondition: Run is called with a stubbed listener that captures the handler.
+  action: Send GET / and GET /src/model.mjs to the captured handler.
+  expected: / returns 200 with the embedded index.html; /src/model.mjs returns 200 with content type text/javascript.
+  method: test
+  expected_output: "index=200 module=200 module_type=text/javascript"
+```
+
+REQ-041 The CLI runner SHALL use the workspace settings GitHub token for GitHub requests when it is set, use the `GITHUB_TOKEN` environment variable when the settings token is empty, and never write the environment token to the store.
+
+```yaml
+source: ADR-025
+status: active
+acceptance:
+  kind: categorical
+  precondition: A store with and without a saved GitHub token, and an environment lookup that returns a GITHUB_TOKEN value.
+  action: Resolve the GitHub token for both stores, then read the raw settings back from the store.
+  expected: The saved token wins when present; the environment token is used when no token is saved; the store's saved token is unchanged in both cases.
+  method: test
+  expected_output: "settings_wins=true env_fallback=true env_persisted=false"
+```
+
+REQ-042 The CLI runner SHALL register a `daily_portfolio_sync` job that runs the standards audit, metrics collection without package coordinates, capability profiling, issue discovery, community scan and playbook generation for each tracked repository, and SHALL trigger that job once when the server starts.
+
+```yaml
+source: ADR-026
+status: active
+acceptance:
+  kind: categorical
+  precondition: A store with two tracked repositories and stubbed GitHub, registry and community endpoints that record requests.
+  action: Start the server through Run with a stubbed listener and wait for the startup job record.
+  expected: The job history contains one completed daily_portfolio_sync record, and each repository received the six enrichment steps with no package coordinates in the metrics request.
+  method: test
+  expected_output: "job=daily_portfolio_sync status=completed repos=2 steps_per_repo=6 packages=0"
+```
+
+REQ-043 The GitHub client SHALL open a remediation pull request against the repository's default branch when the request names no base branch, and SHALL create the head branch from the default branch's latest commit when the head branch does not exist.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: A mock GitHub API whose repository default branch is "trunk" and which has no branch named by the request.
+  action: Call CreateRemediationPR for an owned repository with an empty BaseBranch.
+  expected: The client creates refs/heads/<head> at trunk's commit SHA, commits the file to the head branch, and opens the pull request with base "trunk".
+  method: test
+  expected_output: "base=trunk branch_created=true"
+```
+
+REQ-044 The GitHub client SHALL include the existing file's SHA when committing a remediation file that already exists on the head branch.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: A mock GitHub API where the head branch exists and already contains the target file with a known SHA.
+  action: Call CreateRemediationPR for an owned repository.
+  expected: The contents PUT request carries the existing file's SHA.
+  method: test
+  expected_output: "put_sha=existing"
+```
+
+REQ-045 The GitHub client SHALL return the URL of the open pull request for the head branch when GitHub reports that a pull request for that branch already exists.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: A mock GitHub API whose pull request creation returns 422 "A pull request already exists" and whose pull request list returns one open pull request for the head branch.
+  action: Call CreateRemediationPR for an owned repository.
+  expected: Returns the existing pull request's html_url and no error.
+  method: test
+  expected_output: "pr_url=existing err=nil"
+```
+
+REQ-046 The GitHub client SHALL return `ErrWorkflowScopeRequired`, with guidance to grant the `workflow` OAuth scope, when committing a file under `.github/workflows/` returns 404.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: A mock GitHub API whose contents PUT returns 404 for .github/workflows/scorecard.yml.
+  action: Call CreateRemediationPR for that file on an owned repository.
+  expected: Returns an error that matches ErrWorkflowScopeRequired and whose message names the workflow scope; no pull request is requested.
+  method: test
+  expected_output: "err=ErrWorkflowScopeRequired pr_requested=false"
+```
+
+REQ-047 The GitHub client SHALL return zero view and clone counts and an empty referrer list, without error, when a traffic endpoint responds with 403 or 404.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: A mock GitHub API whose traffic endpoints return 403 for one repository and 404 for another.
+  action: Call FetchTrafficSnapshot for both repositories.
+  expected: Both snapshots have zero views, zero clones and no referrers, and no error is returned.
+  method: test
+  expected_output: "views=0 clones=0 referrers=0 err=nil"
+```
+
+REQ-048 The GitHub client SHALL repeat an issue search once with the query `is:issue is:open <keyword>` when the original query returns no items and contains a keyword, where the keyword is the first term that is not an `is:`, `language:` or `label:` qualifier, and SHALL return the issue fields unmodified.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: A mock search API that returns no items for "is:issue language:Go parser" and one item for "is:issue is:open parser".
+  action: Call SearchIssues with "is:issue language:Go parser".
+  expected: The client sends the broader query once and returns the single item with its body and labels exactly as the API returned them.
+  method: test
+  expected_output: "retries=1 items=1 body_unchanged=true labels_unchanged=true"
+```
+
+REQ-049 The package registry adapter SHALL answer `/downloads/npm/{package}` for unscoped npm packages with the npm registry's last-day download count, and SHALL answer every other ecosystem, scoped npm packages and failed lookups with 0 downloads.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: A mock npm downloads API that returns 1234 for "left-pad" and 404 for "missing-pkg".
+  action: Send requests for npm/left-pad, npm/missing-pkg, npm/@scope/pkg and pypi/requests through the adapter.
+  expected: left-pad returns 1234; the other three return 0; every response is status 200.
+  method: test
+  expected_output: "left-pad=1234 missing=0 scoped=0 pypi=0"
+```
+
+REQ-050 The community feed adapter SHALL answer `/feeds/{platform}?q=<keyword>` for `hackernews`, `stackoverflow`, `reddit`, `devto` and `lobsters` from Hacker News Algolia story search, Stack Exchange search, Reddit search, Dev.to articles by tag and Hacker News Algolia Ask HN search respectively, with fixed scores of 82 (91 above 50 points) for Hacker News and Ask HN items, 88 for Stack Overflow, 86 for Reddit and 84 for Dev.to, using `open source` when the keyword is empty.
+
+```yaml
+source: ADR-024
+status: active
+acceptance:
+  kind: categorical
+  precondition: Mock Algolia, Stack Exchange, Reddit and Dev.to APIs that each return known items.
+  action: Send /feeds/{platform}?q=parser for each of the five platforms and /feeds/hackernews with no q.
+  expected: Each response lists the mock items with the platform's community label (lobsters items labeled Ask HN) and fixed score; the request without q queries "open source".
+  method: test
+  expected_output: "platforms=5 lobsters_label=Ask_HN empty_q=open_source"
+```
+
+REQ-051 The OSS standards remediator SHALL return fixed GitHub Actions workflow drafts for `openssf_scorecard` at `.github/workflows/scorecard.yml` and `release_automation` at `.github/workflows/release.yml`, with `ci:` commit messages, without calling the LLM provider.
+
+```yaml
+source: ADR-027
+status: active
+acceptance:
+  kind: categorical
+  precondition: An LLM client configured with a mock endpoint that records calls.
+  action: Call BuildRemediationDraft for openssf_scorecard and release_automation.
+  expected: Returns drafts with the two workflow paths, workflow YAML content, commit messages starting with "ci:", and no request to the LLM endpoint.
+  method: test
+  expected_output: "scorecard=.github/workflows/scorecard.yml release=.github/workflows/release.yml llm_calls=0"
+```
