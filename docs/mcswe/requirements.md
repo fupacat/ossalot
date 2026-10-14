@@ -552,7 +552,7 @@ REQ-040 The CLI runner SHALL serve the embedded `web/dist` files at `/` and the 
 
 ```yaml
 source: ADR-023
-status: active
+status: retired  # replaced by REQ-052 (ADR-029): Vite bundles the modules, so /src/ is no longer served
 acceptance:
   kind: categorical
   precondition: Run is called with a stubbed listener that captures the handler.
@@ -714,4 +714,46 @@ acceptance:
   expected: Returns drafts with the two workflow paths, workflow YAML content, commit messages starting with "ci:", and no request to the LLM endpoint.
   method: test
   expected_output: "scorecard=.github/workflows/scorecard.yml release=.github/workflows/release.yml llm_calls=0"
+```
+
+REQ-052 The CLI runner SHALL serve the files of the embedded `web/dist` build at their paths under `/`, including the bundled files under `/assets/`, and SHALL answer `/src/` paths with 404.
+
+```yaml
+source: ADR-029
+status: active
+acceptance:
+  kind: categorical
+  precondition: The server handler is built over an embedded file system holding index.html and assets/app.js.
+  action: Send GET /, GET /assets/app.js and GET /src/model.mjs to the handler.
+  expected: / returns 200 with index.html, /assets/app.js returns 200 with a JavaScript content type, and /src/model.mjs returns 404.
+  method: test
+  expected_output: "index=200 asset=200 src=404"
+```
+
+REQ-053 The CLI runner SHALL answer `GET /` with status 503 and a message naming `npm run build` when the embedded `web/dist` build has no `index.html`.
+
+```yaml
+source: ADR-029
+status: active
+acceptance:
+  kind: categorical
+  precondition: The server handler is built over an embedded file system that holds only the placeholder file.
+  action: Send GET / to the handler.
+  expected: Returns 503 with a body that names npm run build; API routes still answer.
+  method: test
+  expected_output: "index=503 names_build=true api=200"
+```
+
+REQ-054 The continuous integration workflow SHALL run `npm ci` and `npm run build` in `web/` after setting up Node.js and before the MCSWE evidence steps and the Go build.
+
+```yaml
+source: ADR-030
+status: active
+acceptance:
+  kind: categorical
+  precondition: The repository's .github/workflows/ci.yml.
+  action: Read the workflow's steps in order.
+  expected: A step runs npm ci and npm run build with web as its working directory, after the Node.js setup step and before the test evidence, coverage evidence and go build steps.
+  method: test
+  expected_output: "frontend_build_step=present order=node<build<evidence<go_build"
 ```
