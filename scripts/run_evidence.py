@@ -35,7 +35,7 @@ def bcov_env():
     env = get_env()
     env["GOPRIVATE"] = BCOV_MODULE.rsplit("/", 1)[0] + "/*"
     env["GIT_TERMINAL_PROMPT"] = "0"
-    if shutil.which("gh"):
+    if "GIT_CONFIG_COUNT" not in os.environ and shutil.which("gh"):
         env["GIT_CONFIG_COUNT"] = "1"
         env["GIT_CONFIG_KEY_0"] = "credential.https://github.com.helper"
         env["GIT_CONFIG_VALUE_0"] = "!gh auth git-credential"
