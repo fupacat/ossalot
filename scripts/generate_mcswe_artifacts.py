@@ -327,6 +327,8 @@ def requirement_coverage(req_id, ctx):
 
 
 def requirement_status(req_id, ctx):
+    if ctx.reqs[req_id]["status"] == "retired":
+        return {"status": "retired", "coverage": None}
     tlist = ctx.tests.get(req_id, [])
     if not tlist:
         return {"status": "unverified", "coverage": None}
@@ -401,6 +403,8 @@ def evaluate(ctx):
     check("O1.1", source_problems)
     p = []
     for req_id in sorted(reqs):
+        if reqs[req_id]["status"] == "retired":
+            continue  # retired requirements keep their ID but no longer trace to code or tests
         if req_id not in ifaces_by_req:
             p.append(f"{req_id} has no interface")
         if not ctx.regions.get(req_id):

@@ -341,7 +341,7 @@ data_schema: null
 ```yaml
 component: cli
 definition: .github/workflows/ci.yml
-requirements: [REQ-032]
+requirements: [REQ-032, REQ-054]
 checker: python3 scripts/run_evidence.py test
 data_schema: null
 ```
@@ -411,7 +411,7 @@ data_schema: null
 ```yaml
 component: cli
 definition: cmd/ossalot/app.go#buildHandler
-requirements: [REQ-039, REQ-040]
+requirements: [REQ-039, REQ-052, REQ-053]
 checker: go vet ./cmd/ossalot
 data_schema: null
 ```
@@ -421,7 +421,7 @@ data_schema: null
 ```yaml
 component: webassets
 definition: web/embed.go#Assets
-requirements: [REQ-040]
+requirements: [REQ-052, REQ-053]
 checker: go vet ./web
 data_schema: null
 ```
