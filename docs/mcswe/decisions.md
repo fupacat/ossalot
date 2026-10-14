@@ -285,8 +285,8 @@ superseded_by: null
 ```yaml
 status: resolved
 context: The UI exists only as hand-edited build output, web/dist/index.html, with no source. Tailwind comes from the Play CDN and compiles styles in the browser, so pages need the CDN at runtime. There is no dev server or hot reload. This is phase 2 of docs/architecture-plan.md.
-decision: web/ becomes a Vite project. The markup moves to web/index.html and the page's inline module script moves unchanged to web/app/main.js; the web/src models it imports are bundled. npm run build writes web/dist/, which is generated and ignored by git except for a placeholder file. Tailwind 3.4, the same major version the Play CDN serves, compiles at build time through PostCSS with the page's existing configuration (class dark mode, slate-850 and slate-950), scanning web/index.html, web/app/ and web/src/. TypeScript is configured for new code, but no file is converted in this phase. The model tests stay on node --test until the TypeScript port in phase 4 moves them to Vitest.
-consequences: UI changes edit source, and web/dist is regenerated. Pages render without the Tailwind CDN. A Go build embeds the real UI only after npm ci and npm run build. Moving the model tests to Vitest is deferred from phase 2, where the architecture plan placed it.
+decision: web/ becomes a Vite project. The markup moves to web/index.html and the page's inline module script moves unchanged to web/app/main.js; the web/src models it imports are bundled. npm run build writes web/dist/, which is generated and ignored by git except for a placeholder file. Tailwind 4 compiles at build time through its Vite plugin, scanning web/index.html, web/app/ and web/src/, with the page's customizations (class dark mode, slate-850 and slate-950) carried into the CSS entry. The page's current look is an iteration mock with no design intent, so differences from the Play CDN's Tailwind 3 output, such as the version 4 palette, are accepted. TypeScript is configured for new code, but no file is converted in this phase. The model tests stay on node --test until the TypeScript port in phase 4 moves them to Vitest.
+consequences: UI changes edit source, and web/dist is regenerated. Pages render without the Tailwind CDN. Colors and spacing may shift slightly with Tailwind 4; the design phase sets the real look. A Go build embeds the real UI only after npm ci and npm run build. Moving the model tests to Vitest is deferred from phase 2, where the architecture plan placed it.
 superseded_by: null
 ```
 
@@ -315,7 +315,7 @@ superseded_by: null
 ```yaml
 status: resolved
 context: Iterating on the UI needs hot reload. Today every UI change means editing the built file and reloading against a running Go server.
-decision: make dev runs the Go server (cmd/ossalot on 127.0.0.1:8080) and the Vite dev server (127.0.0.1:5173) together. Vite proxies /api to :8080, updates styles in place and reloads the page when the script changes. make build runs the frontend build, then go build. The Makefile and the web build configuration (package.json, package-lock.json, and the Vite, PostCSS, Tailwind and TypeScript configuration) are tooling outside the manifest's scope, like scripts/.
+decision: make dev runs the Go server (cmd/ossalot on 127.0.0.1:8080) and the Vite dev server (127.0.0.1:5173) together. Vite proxies /api to :8080, updates styles in place and reloads the page when the script changes. make build runs the frontend build, then go build. The Makefile and the web build configuration (package.json, package-lock.json, and the Vite and TypeScript configuration) are tooling outside the manifest's scope, like scripts/.
 consequences: During development the UI is opened on :5173; :8080 serves whatever UI the running binary embeds. Tooling changes need no requirement amendments.
 superseded_by: null
 ```
