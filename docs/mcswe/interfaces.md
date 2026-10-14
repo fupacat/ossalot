@@ -395,5 +395,15 @@ checker: node --check web/src/sonar_model.mjs
 data_schema: null
 ```
 
+## IF-038 SonarCloud token and GitHub secret deep-links
+
+```yaml
+component: web
+definition: web/src/sonar_model.mjs#evaluateSonarOnboarding
+requirements: [REQ-038]
+checker: node --check web/src/sonar_model.mjs
+data_schema: null
+```
+
 
 

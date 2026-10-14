@@ -200,5 +200,15 @@ consequences: Streamlines static analysis setup for both free cloud users and se
 superseded_by: null
 ```
 
+## ADR-020 Token and GitHub secret deep-links for SonarCloud onboarding
+
+```yaml
+status: resolved
+context: After a SonarCloud project is imported, the analysis job still needs a SONAR_TOKEN secret in the GitHub repository. Maintainers currently have to find the token page and the secrets page themselves. This was first proposed as an amendment to REQ-037, which is superseded here so that the REQ-037 identifier keeps its committed meaning.
+decision: Extend evaluateSonarOnboarding in web/src/sonar_model.mjs to return the SonarCloud token generation URL and the GitHub Actions new-secret URL for the repository, with the secret name SONAR_TOKEN.
+consequences: Maintainers can finish SonarCloud setup from the dashboard without searching for settings pages. The links are fixed URL patterns, so they are not checked against live SonarCloud or GitHub pages.
+superseded_by: null
+```
+
 
 

@@ -1,0 +1,465 @@
+standard: '1.0'
+commit: 19e45b34066afc627a454c976b1d4ed050353eb2
+date: '2026-10-14'
+performed_by: agent
+scope:
+- cmd/
+- internal/
+- web/src/
+commands:
+- python3 scripts/run_evidence.py test
+- python3 scripts/run_evidence.py coverage
+- python3 scripts/run_evidence.py per-req <requirement's tests>
+checkers:
+- command: go vet ./cmd/ossalot
+  exit_code: 0
+- command: go vet ./internal/api
+  exit_code: 0
+- command: go vet ./internal/config
+  exit_code: 0
+- command: go vet ./internal/db
+  exit_code: 0
+- command: go vet ./internal/engine/community
+  exit_code: 0
+- command: go vet ./internal/engine/discovery
+  exit_code: 0
+- command: go vet ./internal/engine/metrics
+  exit_code: 0
+- command: go vet ./internal/engine/notifier
+  exit_code: 0
+- command: go vet ./internal/engine/profiler
+  exit_code: 0
+- command: go vet ./internal/engine/standards
+  exit_code: 0
+- command: go vet ./internal/github
+  exit_code: 0
+- command: go vet ./internal/llm
+  exit_code: 0
+- command: go vet ./internal/scheduler
+  exit_code: 0
+- command: node --check web/src/discovery_model.mjs
+  exit_code: 0
+- command: node --check web/src/hygiene_model.mjs
+  exit_code: 0
+- command: node --check web/src/inbox_model.mjs
+  exit_code: 0
+- command: node --check web/src/metrics_model.mjs
+  exit_code: 0
+- command: node --check web/src/model.mjs
+  exit_code: 0
+- command: node --check web/src/pipeline_model.mjs
+  exit_code: 0
+- command: node --check web/src/setup_model.mjs
+  exit_code: 0
+- command: node --check web/src/sonar_model.mjs
+  exit_code: 0
+- command: python3 scripts/run_evidence.py test
+  exit_code: 0
+tools:
+  go: 1.23.2
+  node: 22.23.1
+  python: 3.12.3
+evidence:
+- file: reports/junit.xml
+  sha256: cfa1f6bd6ac8a380c71735c2f6e93f313a4f11e023e781e59cf8da3a6e214d8b
+- file: reports/lcov.info
+  sha256: 941b87e9caf800fdf068c3859e4fb62f1895ea3ebf84afd5cff6c125647e5a9e
+exceptions:
+  count: 0
+  lines_covered: 0
+open_emergencies: []
+clauses:
+  O1.1: pass
+  O1.2: fail
+  O1.3: fail
+  O1.4: pass
+  O1.5: pass
+  O1.6: pass
+  O1.7: not_applicable
+  O1.8: pass
+  O2.1: pass
+  O2.2: pass
+  O2.3: pass
+  O2.4: fail
+  O2.5: fail
+  O2.6: not_applicable
+  O2.7: pass
+  O2.8: fail
+  O3.1: pass
+  O3.2: pass
+  O3.3: pass
+  O3.4: pass
+  O3.5: pass
+  O3.6: pass
+  O3.7: pass
+  O3.8: pass
+  O4.1: fail
+  O4.2: fail
+  O4.3: not_applicable
+  O4.4: fail
+  O4.5: fail
+  O4.6: pass
+  O4.7: fail
+  O5.1: pass
+  O5.2: fail
+  O5.3: fail
+  O5.4: fail
+  O5.5: fail
+  O6.1: fail
+  O6.2: pass
+  O6.3: not_applicable
+  O7.1: fail
+  O7.2: pass
+  O7.3: fail
+  O7.4: pass
+  O7.5: pass
+  O7.6: not_applicable
+  D1.1: pass
+  D1.2: pass
+  D1.3: pass
+  D1.4: pass
+  D1.5: pass
+  D2.1: fail
+  D2.2: pass
+  D2.3: fail
+  D2.4: fail
+  D2.5: fail
+  D3.1: pass
+  D3.2: pass
+  D3.3: pass
+  D3.4: pass
+  D3.5: pass
+  D4.1: pass
+  D4.2: pass
+  D4.3: pass
+  D4.4: fail
+  D5.1: pass
+  D5.2: fail
+  D5.3: pass
+  D5.4: pass
+  D5.5: pass
+  D5.6: pass
+  D5.7: pass
+  D6.1: fail
+  D6.2: pass
+  D6.3: fail
+  D6.4: fail
+  D7.1: pass
+  D7.2: pass
+  D7.3: pass
+  D8.1: pass
+  D8.2: pass
+  D8.3: fail
+  D8.4: pass
+  D9.1: pass
+  D9.2: pass
+  D9.3: pass
+  X1.1: pass
+  X1.2: pass
+  X1.3: pass
+  X1.4: pass
+  X1.5: pass
+  X1.6: pass
+  X1.7: pass
+  X1.8: pass
+findings:
+- clause: O1.2
+  files: []
+  detail: REQ-032 has no anchored region
+- clause: O1.3
+  files: []
+  detail: 'not checked by the audit tool: every non-trivial line in scope is not checked
+    against its anchor'
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for cmd/ossalot/main.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/api/community_handlers.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/api/discovery_handlers.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/api/metrics_handlers.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/api/server.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/config/config.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/db/metrics_store.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/db/opportunities_store.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/db/store.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/engine/community/scanner.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/engine/discovery/finder.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/engine/metrics/collector.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/engine/notifier/webhook.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/engine/profiler/profiler.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/engine/standards/auditor.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/github/client.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/github/search.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/github/traffic.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/llm/provider.go
+- clause: O2.4
+  files: []
+  detail: branch coverage is not measured for internal/scheduler/runner.go
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:6'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:12'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:23'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:23'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:31'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:37'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:38'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:39'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/pipeline_model.mjs:38'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:3'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:7'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:36'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:36'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:44'
+- clause: O2.4
+  files: []
+  detail: 'branch not taken: web/src/sonar_model.mjs:4'
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for cmd/ossalot/main.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/api/community_handlers.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/api/discovery_handlers.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/api/metrics_handlers.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/api/server.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/config/config.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/db/metrics_store.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/db/opportunities_store.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/db/store.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/engine/community/scanner.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/engine/discovery/finder.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/engine/metrics/collector.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/engine/notifier/webhook.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/engine/profiler/profiler.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/engine/standards/auditor.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/github/client.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/github/search.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/github/traffic.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/llm/provider.go
+- clause: O2.5
+  files: []
+  detail: branch coverage is not measured for internal/scheduler/runner.go
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:6'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:12'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:23'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:23'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:31'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:37'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:38'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/discovery_model.mjs:39'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/pipeline_model.mjs:38'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:3'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:7'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:36'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:36'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/setup_model.mjs:44'
+- clause: O2.5
+  files: []
+  detail: 'branch not taken: web/src/sonar_model.mjs:4'
+- clause: O2.8
+  files: []
+  detail: shortfall from O2.5 has no exception (exceptions register is empty)
+- clause: O4.1
+  files: []
+  detail: 'not checked by the audit tool: approvals are not read from review records'
+- clause: O4.2
+  files: []
+  detail: 'not checked by the audit tool: independence of approvers is not checked'
+- clause: O4.4
+  files: []
+  detail: 'not checked by the audit tool: self-approvals are not recorded from review
+    data'
+- clause: O4.5
+  files: []
+  detail: 'not checked by the audit tool: the matrix approval column is not derived
+    from approval data'
+- clause: O4.7
+  files: []
+  detail: 'not checked by the audit tool: whether tests check intent is a review question'
+- clause: O5.2
+  files: []
+  detail: 'not checked by the audit tool: amendments are not compared against approved
+    baselines'
+- clause: O5.3
+  files: []
+  detail: 'not checked by the audit tool: invalidation of downstream approvals is
+    not computed'
+- clause: O5.4
+  files: []
+  detail: 'not checked by the audit tool: amendment reasons are not checked'
+- clause: O5.5
+  files: []
+  detail: 'not checked by the audit tool: identifier reuse is not checked against
+    history'
+- clause: O6.1
+  files: []
+  detail: 'not checked by the audit tool: definitions-before-code order is not read
+    from history'
+- clause: O7.1
+  files: []
+  detail: 'not checked by the audit tool: component boundaries are not compared with
+    the scope'
+- clause: O7.3
+  files: []
+  detail: 'not checked by the audit tool: data exchanged between components is not
+    checked for schemas'
+- clause: D2.1
+  files: []
+  detail: 'not checked by the audit tool: anchors are not checked against the file''s
+    comment syntax'
+- clause: D2.3
+  files: []
+  detail: 'not checked by the audit tool: the three-line placement rule is not checked'
+- clause: D2.4
+  files: []
+  detail: 'not checked by the audit tool: nested inheritance of anchors is not checked'
+- clause: D2.5
+  files: []
+  detail: 'not checked by the audit tool: anchors covering no unit are not detected'
+- clause: D4.4
+  files: []
+  detail: 'not checked by the audit tool: the bounds of the work are not checked against
+    the decision record'
+- clause: D5.2
+  files: []
+  detail: 'not checked by the audit tool: whether each requirement states one behavior
+    is a review question'
+- clause: D6.1
+  files: []
+  detail: 'not checked by the audit tool: component boundaries are not listed in the
+    interface control document'
+- clause: D6.3
+  files: []
+  detail: 'not checked by the audit tool: data exchange schemas are not checked'
+- clause: D6.4
+  files: []
+  detail: 'not checked by the audit tool: restated native definitions are not detected'
+- clause: D8.3
+  files: []
+  detail: 'not checked by the audit tool: the matrix approval column is not derived
+    from approval data'
+result: fail

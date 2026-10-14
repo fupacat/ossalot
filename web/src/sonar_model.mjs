@@ -1,8 +1,11 @@
-// TRACEABILITY_MAPPING: REQ-037
+// TRACEABILITY_MAPPING: REQ-037, REQ-038
 export function evaluateSonarOnboarding(repoFullName, orgSearchPayload, compSearchPayload) {
   const full = repoFullName || "owner/repo";
   const [owner, name] = full.includes("/") ? full.split("/") : ["owner", full];
   const projectKey = `${owner}_${name}`;
+  // Fixed URL patterns: SonarCloud's security page for user tokens, and the GitHub page that creates an Actions secret
+  const tokenURL = "https://sonarcloud.io/account/security";
+  const secretURL = `https://github.com/${owner}/${name}/settings/secrets/actions/new`;
 
   const orgs = (orgSearchPayload && Array.isArray(orgSearchPayload.organizations))
     ? orgSearchPayload.organizations
@@ -56,6 +59,9 @@ export function evaluateSonarOnboarding(repoFullName, orgSearchPayload, compSear
     summary,
     actionLabel,
     actionURL,
+    tokenURL,
+    secretURL,
+    secretName: "SONAR_TOKEN",
     localCommunityEdition,
   };
 }

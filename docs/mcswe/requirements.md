@@ -520,5 +520,19 @@ acceptance:
   expected_output: "status=registered_and_imported has_ce_guide=true"
 ```
 
+REQ-038 The frontend sonar onboarding model SHALL provide a SonarCloud token generation deep-link and a GitHub Actions secret configuration deep-link for the `SONAR_TOKEN` secret of a repository.
+
+```yaml
+source: ADR-020
+status: active
+acceptance:
+  kind: categorical
+  precondition: Repository coordinates with an owner and a name.
+  action: Call evaluateSonarOnboarding for a repository owned by an organization that is registered on SonarCloud.
+  expected: Returns a token generation URL on SonarCloud and a GitHub Actions secret URL for the repository, with the secret named SONAR_TOKEN.
+  method: test
+  expected_output: "tokenURL=https://sonarcloud.io/account/security secretURL=https://github.com/owner/repo/settings/secrets/actions/new secretName=SONAR_TOKEN"
+```
+
 
 
