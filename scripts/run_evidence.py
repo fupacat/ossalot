@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Offline JUnit XML and LCOV Coverage Evidence Runner for OSSAlot (Go + Node)."""
+import hashlib
 import json
 import os
 import re
@@ -12,6 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REPORTS = ROOT / "reports"
 GO_BIN = shutil.which("go") or "/home/eric/.gemini/antigravity/brain/dc8f5867-fc68-42d2-94ac-0a94391363ac/scratch/go/bin/go"
+MODULE_PREFIX = "github.com/eric/ossalot/"
+JS_NAME_SPECIALS = re.compile(r"[\\^$.*+?()\[\]{}|/]")
 
 
 def get_env():
@@ -21,13 +24,18 @@ def get_env():
     return env
 
 
+def per_req_key(test_ids):
+    """Stable name for one requirement's per-requirement evidence, derived from its test IDs."""
+    return hashlib.sha256("\n".join(sorted(test_ids)).encode("utf-8")).hexdigest()[:16]
+
+
 def map_go_tests_to_files():
     mapping = {}
     test_re = re.compile(r"^func\s+(Test\w+)\s*\(", re.MULTILINE)
     for path in ROOT.rglob("*_test.go"):
         rel = path.relative_to(ROOT).as_posix()
         pkg_rel = path.parent.relative_to(ROOT).as_posix()
-        pkg = f"github.com/eric/ossalot/{pkg_rel}"
+        pkg = f"{MODULE_PREFIX}{pkg_rel}"
         text = path.read_text(encoding="utf-8")
         for m in test_re.finditer(text):
             mapping[(pkg, m.group(1))] = rel
@@ -70,8 +78,9 @@ def run_node_file_junit(js_rel):
 
 def run_tests():
     REPORTS.mkdir(parents=True, exist_ok=True)
-    # Remove the previous report so a failed run cannot leave stale evidence behind
+    # Remove the previous test report so a failed run cannot leave stale evidence behind
     (REPORTS / "junit.xml").unlink(missing_ok=True)
+    shutil.rmtree(REPORTS / "js", ignore_errors=True)
     test_file_map = map_go_tests_to_files()
 
     proc = subprocess.run(
@@ -135,6 +144,7 @@ def run_tests():
 
 
 def convert_coverprofile_to_lcov(coverprofile_path, lcov_path):
+    """Convert a Go coverprofile to LCOV line records. Go reports statements, so no branch records are written."""
     blocks_by_file = {}
     raw = coverprofile_path.read_text(encoding="utf-8").splitlines()
     block_re = re.compile(r"^(.+?):(\d+)\.\d+,(\d+)\.\d+\s+(\d+)\s+(\d+)$")
@@ -143,7 +153,7 @@ def convert_coverprofile_to_lcov(coverprofile_path, lcov_path):
         if not m:
             continue
         pkg_file, start_l, end_l, num_stmt, count = m.groups()
-        rel_file = pkg_file.removeprefix("github.com/eric/ossalot/")
+        rel_file = pkg_file.removeprefix(MODULE_PREFIX)
         blocks_by_file.setdefault(rel_file, []).append(
             (int(start_l), int(end_l), int(num_stmt), int(count))
         )
@@ -152,30 +162,37 @@ def convert_coverprofile_to_lcov(coverprofile_path, lcov_path):
     for rel_file, blocks in sorted(blocks_by_file.items()):
         lcov_lines.append(f"SF:{rel_file}")
         line_counts = {}
-        brda_entries = []
-        for idx, (s_line, e_line, _, count) in enumerate(blocks):
+        for s_line, e_line, _, count in blocks:
             for ln in range(s_line, e_line + 1):
                 line_counts[ln] = max(line_counts.get(ln, 0), count)
-            brda_entries.append((s_line, idx, 0, count))
         for ln, cnt in sorted(line_counts.items()):
             lcov_lines.append(f"DA:{ln},{cnt}")
         lf = len(line_counts)
         lh = sum(1 for c in line_counts.values() if c > 0)
         lcov_lines.append(f"LF:{lf}")
         lcov_lines.append(f"LH:{lh}")
-        for s_line, blk_id, br_id, cnt in brda_entries:
-            lcov_lines.append(f"BRDA:{s_line},{blk_id},{br_id},{cnt}")
-        brf = len(brda_entries)
-        brh = sum(1 for _, _, _, c in brda_entries if c > 0)
-        lcov_lines.append(f"BRF:{brf}")
-        lcov_lines.append(f"BRH:{brh}")
         lcov_lines.append("end_of_record")
 
     lcov_path.write_text("\n".join(lcov_lines) + "\n", encoding="utf-8")
 
 
+def drop_test_files(lcov_text):
+    """Node also instruments the test files; only source files belong in the report."""
+    keep = []
+    skip = False
+    for line in lcov_text.splitlines():
+        if line.startswith("SF:"):
+            skip = line.endswith(".test.mjs")
+        if not skip:
+            keep.append(line)
+    return "\n".join(keep) + "\n"
+
+
 def run_coverage():
     REPORTS.mkdir(parents=True, exist_ok=True)
+    # Remove previous coverage reports; junit.xml belongs to the test command
+    for name in ("coverage.out", "lcov.info", "js-lcov.info"):
+        (REPORTS / name).unlink(missing_ok=True)
     cov_out = REPORTS / "coverage.out"
     subprocess.run(
         [
@@ -194,7 +211,6 @@ def run_coverage():
         p.relative_to(ROOT).as_posix() for p in (ROOT / "web/src").glob("*.test.mjs")
     )
     js_lcov = REPORTS / "js-lcov.info"
-    js_lcov.unlink(missing_ok=True)
     subprocess.run(
         [
             "node",
@@ -209,47 +225,68 @@ def run_coverage():
         check=True,
     )
     convert_coverprofile_to_lcov(cov_out, REPORTS / "lcov.info")
-    # Node also instruments the test files; only source files belong in the report
-    keep = []
-    skip = False
-    for line in js_lcov.read_text(encoding="utf-8").splitlines():
-        if line.startswith("SF:"):
-            skip = line.endswith(".test.mjs")
-        if not skip:
-            keep.append(line)
     with (REPORTS / "lcov.info").open("a", encoding="utf-8") as combined:
-        combined.write("\n".join(keep) + "\n")
+        combined.write(drop_test_files(js_lcov.read_text(encoding="utf-8")))
 
 
 def run_per_req(test_ids):
-    REPORTS.mkdir(parents=True, exist_ok=True)
+    """Run only the given tests with coverage; write reports/per-req/<key>.lcov for them.
+
+    The file name comes from per_req_key(), so the audit can find each requirement's evidence.
+    A failing test makes the command exit non-zero and leaves no per-requirement file behind.
+    """
+    out_dir = REPORTS / "per-req"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    key = per_req_key(test_ids)
+    combined = out_dir / f"{key}.lcov"
+    combined.unlink(missing_ok=True)
+
+    go_names = {}
+    js_names = {}
     for tid in test_ids:
-        parts = tid.split("::")
-        if parts[0].endswith(".mjs"):
-            subprocess.run(
-                ["node", "--test", parts[0]],
-                cwd=ROOT,
-                env=get_env(),
-                check=True,
-            )
+        file_part, classname, name = tid.split("::", 2)
+        if file_part.endswith(".mjs"):
+            js_names.setdefault(file_part, []).append(name)
         else:
-            pkg = parts[1]
-            func_name = parts[2]
-            cov_out = REPORTS / f"cov_{func_name}.out"
-            subprocess.run(
-                [
-                    GO_BIN,
-                    "test",
-                    "-covermode=count",
-                    f"-coverprofile={cov_out}",
-                    "-run",
-                    f"^{func_name}$",
-                    pkg,
-                ],
-                cwd=ROOT,
-                env=get_env(),
-                check=True,
-            )
+            go_names.setdefault(classname.removeprefix(MODULE_PREFIX), []).append(name)
+
+    parts = []
+    for index, (pkg_dir, names) in enumerate(sorted(go_names.items())):
+        profile = out_dir / f"{key}-go{index}.out"
+        pattern = "^(?:" + "|".join(re.escape(n) for n in names) + ")$"
+        subprocess.run(
+            [GO_BIN, "test", "-covermode=count", f"-coverprofile={profile}", "-run", pattern, f"./{pkg_dir}"],
+            cwd=ROOT,
+            env=get_env(),
+            check=True,
+        )
+        lcov_part = out_dir / f"{key}-go{index}.lcov"
+        convert_coverprofile_to_lcov(profile, lcov_part)
+        parts.append(lcov_part.read_text(encoding="utf-8"))
+        profile.unlink()
+        lcov_part.unlink()
+
+    for index, (js_rel, names) in enumerate(sorted(js_names.items())):
+        dest = out_dir / f"{key}-js{index}.lcov"
+        pattern = "^(?:" + "|".join(JS_NAME_SPECIALS.sub(r"\\\g<0>", n) for n in names) + ")$"
+        subprocess.run(
+            [
+                "node",
+                "--test",
+                "--experimental-test-coverage",
+                "--test-reporter=lcov",
+                f"--test-reporter-destination={dest}",
+                f"--test-name-pattern={pattern}",
+                js_rel,
+            ],
+            cwd=ROOT,
+            env=get_env(),
+            check=True,
+        )
+        parts.append(drop_test_files(dest.read_text(encoding="utf-8")))
+        dest.unlink()
+
+    combined.write_text("".join(parts), encoding="utf-8")
 
 
 if __name__ == "__main__":
