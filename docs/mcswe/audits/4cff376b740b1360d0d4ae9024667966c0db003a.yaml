@@ -1,0 +1,1300 @@
+standard: '1.0'
+commit: 4cff376b740b1360d0d4ae9024667966c0db003a
+date: '2026-10-14'
+performed_by: agent
+scope:
+- cmd/
+- internal/
+- web/src/
+- .github/workflows/
+commands:
+- python3 scripts/run_evidence.py test
+- python3 scripts/run_evidence.py coverage
+- python3 scripts/run_evidence.py per-req <requirement's tests>
+checkers:
+- command: go vet ./cmd/ossalot
+  exit_code: 0
+- command: go vet ./internal/api
+  exit_code: 0
+- command: go vet ./internal/config
+  exit_code: 0
+- command: go vet ./internal/db
+  exit_code: 0
+- command: go vet ./internal/engine/community
+  exit_code: 0
+- command: go vet ./internal/engine/discovery
+  exit_code: 0
+- command: go vet ./internal/engine/metrics
+  exit_code: 0
+- command: go vet ./internal/engine/notifier
+  exit_code: 0
+- command: go vet ./internal/engine/profiler
+  exit_code: 0
+- command: go vet ./internal/engine/standards
+  exit_code: 0
+- command: go vet ./internal/github
+  exit_code: 0
+- command: go vet ./internal/llm
+  exit_code: 0
+- command: go vet ./internal/scheduler
+  exit_code: 0
+- command: node --check web/src/discovery_model.mjs
+  exit_code: 0
+- command: node --check web/src/hygiene_model.mjs
+  exit_code: 0
+- command: node --check web/src/inbox_model.mjs
+  exit_code: 0
+- command: node --check web/src/metrics_model.mjs
+  exit_code: 0
+- command: node --check web/src/model.mjs
+  exit_code: 0
+- command: node --check web/src/pipeline_model.mjs
+  exit_code: 0
+- command: node --check web/src/setup_model.mjs
+  exit_code: 0
+- command: node --check web/src/sonar_model.mjs
+  exit_code: 0
+- command: python3 scripts/run_evidence.py test
+  exit_code: 0
+tools:
+  go: 1.23.2
+  node: 22.23.1
+  python: 3.12.3
+evidence:
+- file: reports/junit.xml
+  sha256: 83e797fe175d41e12fac53e8f74f5cae7b8c7f664e7b2c61133786e811d805c5
+- file: reports/lcov.info
+  sha256: e8a3aba5f87ecf6deb1e06f1edd22e7b7f072e38aad4229b17302f2b7433f066
+exceptions:
+  count: 0
+  lines_covered: 0
+open_emergencies: []
+clauses:
+  O1.1: pass
+  O1.2: pass
+  O1.3: fail
+  O1.4: pass
+  O1.5: pass
+  O1.6: pass
+  O1.7: not_applicable
+  O1.8: pass
+  O2.1: pass
+  O2.2: pass
+  O2.3: pass
+  O2.4: pass
+  O2.5: pass
+  O2.6: not_applicable
+  O2.7: pass
+  O2.8: pass
+  O3.1: pass
+  O3.2: pass
+  O3.3: pass
+  O3.4: pass
+  O3.5: pass
+  O3.6: pass
+  O3.7: pass
+  O3.8: pass
+  O4.1: fail
+  O4.2: fail
+  O4.3: not_applicable
+  O4.4: fail
+  O4.5: fail
+  O4.6: pass
+  O4.7: fail
+  O5.1: pass
+  O5.2: fail
+  O5.3: fail
+  O5.4: fail
+  O5.5: fail
+  O6.1: fail
+  O6.2: pass
+  O6.3: not_applicable
+  O7.1: fail
+  O7.2: pass
+  O7.3: fail
+  O7.4: pass
+  O7.5: pass
+  O7.6: not_applicable
+  D1.1: pass
+  D1.2: pass
+  D1.3: pass
+  D1.4: pass
+  D1.5: pass
+  D2.1: fail
+  D2.2: pass
+  D2.3: fail
+  D2.4: fail
+  D2.5: fail
+  D3.1: pass
+  D3.2: pass
+  D3.3: pass
+  D3.4: pass
+  D3.5: pass
+  D4.1: pass
+  D4.2: pass
+  D4.3: pass
+  D4.4: fail
+  D5.1: pass
+  D5.2: fail
+  D5.3: pass
+  D5.4: pass
+  D5.5: pass
+  D5.6: pass
+  D5.7: pass
+  D6.1: fail
+  D6.2: pass
+  D6.3: fail
+  D6.4: fail
+  D7.1: pass
+  D7.2: pass
+  D7.3: pass
+  D8.1: pass
+  D8.2: pass
+  D8.3: fail
+  D8.4: pass
+  D9.1: pass
+  D9.2: pass
+  D9.3: pass
+  X1.1: pass
+  X1.2: pass
+  X1.3: pass
+  X1.4: pass
+  X1.5: pass
+  X1.6: pass
+  X1.7: pass
+  X1.8: pass
+findings:
+- clause: O1.3
+  files: []
+  detail: 'not checked by the audit tool: every non-trivial line in scope is not checked
+    against its anchor'
+- clause: O4.1
+  files: []
+  detail: 'not checked by the audit tool: approvals are not read from review records'
+- clause: O4.2
+  files: []
+  detail: 'not checked by the audit tool: independence of approvers is not checked'
+- clause: O4.4
+  files: []
+  detail: 'not checked by the audit tool: self-approvals are not recorded from review
+    data'
+- clause: O4.5
+  files: []
+  detail: 'not checked by the audit tool: the matrix approval column is not derived
+    from approval data'
+- clause: O4.7
+  files: []
+  detail: 'not checked by the audit tool: whether tests check intent is a review question'
+- clause: O5.2
+  files: []
+  detail: 'not checked by the audit tool: amendments are not compared against approved
+    baselines'
+- clause: O5.3
+  files: []
+  detail: 'not checked by the audit tool: invalidation of downstream approvals is
+    not computed'
+- clause: O5.4
+  files: []
+  detail: 'not checked by the audit tool: amendment reasons are not checked'
+- clause: O5.5
+  files: []
+  detail: 'not checked by the audit tool: identifier reuse is not checked against
+    history'
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-001 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-002 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-003 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-004 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-005 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-006 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-007 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-008 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-009 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-010 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-011 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-012 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-013 was defined and implemented in the same commit 5c97c39
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-014 was defined and implemented in the same commit f86ee0c
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-015 was defined and implemented in the same commit f86ee0c
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-016 was defined and implemented in the same commit f86ee0c
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-017 was defined and implemented in the same commit f86ee0c
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-018 was defined and implemented in the same commit f86ee0c
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-019 was defined and implemented in the same commit f86ee0c
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-020 was defined and implemented in the same commit 5949544
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-021 was defined and implemented in the same commit 5949544
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-022 was defined and implemented in the same commit 5949544
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-023 was defined and implemented in the same commit 5949544
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-024 was defined and implemented in the same commit 5949544
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-025 was defined and implemented in the same commit 5949544
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-026 was defined and implemented in the same commit 50f41b3
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-027 was defined and implemented in the same commit 50f41b3
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-028 was defined and implemented in the same commit 50f41b3
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-029 was defined and implemented in the same commit 50f41b3
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-030 was defined and implemented in the same commit 50f41b3
+- clause: O6.1
+  files:
+  - REQ-001
+  - REQ-002
+  - REQ-003
+  - REQ-004
+  - REQ-005
+  - REQ-006
+  - REQ-007
+  - REQ-008
+  - REQ-009
+  - REQ-010
+  - REQ-011
+  - REQ-012
+  - REQ-013
+  - REQ-014
+  - REQ-015
+  - REQ-016
+  - REQ-017
+  - REQ-018
+  - REQ-019
+  - REQ-020
+  - REQ-021
+  - REQ-022
+  - REQ-023
+  - REQ-024
+  - REQ-025
+  - REQ-026
+  - REQ-027
+  - REQ-028
+  - REQ-029
+  - REQ-030
+  - REQ-031
+  detail: REQ-031 was defined and implemented in the same commit 50f41b3
+- clause: O7.1
+  files: []
+  detail: 'not checked by the audit tool: component boundaries are not compared with
+    the scope'
+- clause: O7.3
+  files: []
+  detail: 'not checked by the audit tool: data exchanged between components is not
+    checked for schemas'
+- clause: D2.1
+  files: []
+  detail: 'not checked by the audit tool: anchors are not checked against the file''s
+    comment syntax'
+- clause: D2.3
+  files: []
+  detail: 'not checked by the audit tool: the three-line placement rule is not checked'
+- clause: D2.4
+  files: []
+  detail: 'not checked by the audit tool: nested inheritance of anchors is not checked'
+- clause: D2.5
+  files: []
+  detail: 'not checked by the audit tool: anchors covering no unit are not detected'
+- clause: D4.4
+  files: []
+  detail: 'not checked by the audit tool: the bounds of the work are not checked against
+    the decision record'
+- clause: D5.2
+  files: []
+  detail: 'not checked by the audit tool: whether each requirement states one behavior
+    is a review question'
+- clause: D6.1
+  files: []
+  detail: 'not checked by the audit tool: component boundaries are not listed in the
+    interface control document'
+- clause: D6.3
+  files: []
+  detail: 'not checked by the audit tool: data exchange schemas are not checked'
+- clause: D6.4
+  files: []
+  detail: 'not checked by the audit tool: restated native definitions are not detected'
+- clause: D8.3
+  files: []
+  detail: 'not checked by the audit tool: the matrix approval column is not derived
+    from approval data'
+result: fail

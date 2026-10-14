@@ -210,5 +210,12 @@ consequences: Maintainers can finish SonarCloud setup from the dashboard without
 superseded_by: null
 ```
 
+## ADR-021 Enforcement start for the definitions-first history check
 
-
+```yaml
+status: resolved
+context: O6.1 requires each requirement's definition to be approved before its code enters scope. The repository adopted MCSWE in 743ad99, but its Phase 1 to Phase 3 history places definitions and code in the same commits, and the standard's history check was added in 4cff376. Checking history from before that point would fail on work done before the rule was checked.
+decision: The O6.1 history check runs only for code that entered scope after commit 4cff376 (set as definitions_first_from in MCSWE.md). Earlier commits are not tested by the check. Their findings remain visible in the audit history, and the standard's exception rules do not apply to O6.1 (X1.3).
+consequences: REQ-001 to REQ-031 are not flagged by the history check. Work from 4cff376 onward is checked. This baseline should be reviewed by the project owner before the next release audit.
+superseded_by: null
+```

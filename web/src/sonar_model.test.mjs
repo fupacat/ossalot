@@ -68,3 +68,11 @@ test("[REQ-038] evaluateSonarOnboarding returns SonarCloud token and GitHub SONA
   assert.equal(unregistered.tokenURL, "https://sonarcloud.io/account/security");
   assert.equal(unregistered.secretURL, "https://github.com/newuser/newrepo/settings/secrets/actions/new");
 });
+
+// TRACEABILITY_MAPPING: REQ-037
+test("[REQ-037] evaluateSonarOnboarding treats a name without an owner as owned by owner", () => {
+  const result = evaluateSonarOnboarding("ossalot", { organizations: [] }, null);
+  assert.equal(result.owner, "owner");
+  assert.equal(result.projectKey, "owner_ossalot");
+  assert.equal(result.status, "not_registered");
+});

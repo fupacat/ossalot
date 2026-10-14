@@ -44,3 +44,29 @@ test("[REQ-034] evaluateSetupCapabilities and computeSetupProgress", () => {
   const nullProgress = computeSetupProgress(null);
   assert.equal(nullProgress.percentage, 0);
 });
+
+// TRACEABILITY_MAPPING: REQ-034
+test("[REQ-034] evaluateSetupCapabilities reports configured optional integrations", () => {
+  const configured = evaluateSetupCapabilities({
+    github_token: "ghp_example",
+    llm_api_key: "key",
+    discord_webhook_url: "https://discord.example/webhook",
+    sonar_token: "sonar-token",
+    sonar_host_url: "https://sonar.example.com",
+    sonar_org: "acme",
+    llm_provider: "openai",
+    llm_fast_model: "gpt-fast",
+  });
+  assert.equal(configured.sonarqube_analysis.status, "enabled");
+  assert.equal(configured.sonarqube_analysis.details, "Configured for https://sonar.example.com (Org: acme).");
+  assert.equal(configured.llm_synthesis.details, "Active with openai model (gpt-fast).");
+  assert.equal(configured.webhook_alerts.status, "enabled");
+
+  // Without settings the capabilities fall back to the unconfigured state
+  assert.equal(evaluateSetupCapabilities(null).base_inspection.status, "degraded");
+
+  // Missing host, org, provider and model fall back to the defaults
+  const defaults = evaluateSetupCapabilities({ sonar_token: "sonar-token", llm_api_key: "key" });
+  assert.equal(defaults.sonarqube_analysis.details, "Configured for SonarCloud (Org: default).");
+  assert.equal(defaults.llm_synthesis.details, "Active with gemini model (fast).");
+});
