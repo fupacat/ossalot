@@ -92,6 +92,8 @@ func startServer(t *testing.T, dbFile string, env map[string]string) (http.Handl
 	if code := Run([]string{"-db", dbFile}, func(k string) string { return env[k] }); code != 0 {
 		t.Fatalf("Run exited %d", code)
 	}
+	// Let the startup job finish so it cannot write to dbFile after the test removes its directory
+	waitForJob(t, handler, enrichmentJobName)
 	return handler, upstream
 }
 
