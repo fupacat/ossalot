@@ -54,6 +54,14 @@ func TestAPIServerEndpoints(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(`[{"name":"synced-repo","full_name":"octocat/synced-repo","html_url":"https://github.com/octocat/synced-repo","language":"Go","owner":{"login":"octocat"}}]`))
 	})
+	ghMux.HandleFunc("GET /repos/octocat/hello-world/git/ref/heads/main", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"object":{"sha":"main-sha"}}`))
+	})
+	ghMux.HandleFunc("POST /repos/octocat/hello-world/git/refs", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"ref":"refs/heads/ossalot/remediate-contributing_guide"}`))
+	})
+	ghMux.HandleFunc("GET /repos/octocat/hello-world/contents/CONTRIBUTING.md", http.NotFound)
 	ghMux.HandleFunc("PUT /repos/octocat/hello-world/contents/CONTRIBUTING.md", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"content":{"path":"CONTRIBUTING.md"}}`))
 	})

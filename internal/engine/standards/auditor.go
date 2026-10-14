@@ -150,8 +150,83 @@ var checkFilePaths = map[string]string{
 	"dependency_automation": ".github/dependabot.yml",
 }
 
-// TRACEABILITY_MAPPING: REQ-010
+// TRACEABILITY_MAPPING: REQ-051
+type workflowTemplate struct {
+	filePath string
+	content  string
+}
+
+// TRACEABILITY_MAPPING: REQ-051
+var workflowTemplates = map[string]workflowTemplate{
+	"openssf_scorecard": {
+		filePath: ".github/workflows/scorecard.yml",
+		content: `# OpenSSF Scorecard Workflow
+name: Scorecard supply-chain security
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: '30 1 * * 6'
+  push:
+    branches: [ "main", "master" ]
+permissions: read-all
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+      - name: "Run analysis"
+        uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+`,
+	},
+	"release_automation": {
+		filePath: ".github/workflows/release.yml",
+		content: `# Automated Release Workflow
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+`,
+	},
+}
+
+// TRACEABILITY_MAPPING: REQ-010, REQ-051
 func BuildRemediationDraft(ctx context.Context, llmClient *llm.Client, settings db.WorkspaceSettings, repo db.Repository, checkKey string) (RemediationDraft, error) {
+	// Workflow checks get fixed templates; the LLM provider is never asked for CI configuration
+	if tpl, ok := workflowTemplates[checkKey]; ok {
+		return RemediationDraft{
+			CheckKey:      checkKey,
+			FilePath:      tpl.filePath,
+			BranchName:    fmt.Sprintf("ossalot/remediate-%s", checkKey),
+			CommitMessage: fmt.Sprintf("ci: add %s via OSSAlot remediation", tpl.filePath),
+			PRTitle:       fmt.Sprintf("chore(oss): add %s to improve OSS standards compliance", tpl.filePath),
+			PRBody:        fmt.Sprintf("Automated OSS standards remediation for check `%s` on `%s`.", checkKey, repo.FullName),
+			Content:       tpl.content,
+		}, nil
+	}
 	filePath, ok := checkFilePaths[checkKey]
 	if !ok {
 		return RemediationDraft{}, errors.New("unsupported check key for file remediation")

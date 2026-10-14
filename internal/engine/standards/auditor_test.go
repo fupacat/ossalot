@@ -16,10 +16,10 @@ import (
 func TestEvaluateStandardsCompletePartialAndMinimal(t *testing.T) {
 	// 1. Complete repository (100 points)
 	complete := github.RepoInspection{
-		FullName:        "octocat/hello-world",
-		Description:     "Complete open-source library",
-		LicenseSPDX:     "MIT",
-		Topics:          []string{"go", "oss"},
+		FullName:    "octocat/hello-world",
+		Description: "Complete open-source library",
+		LicenseSPDX: "MIT",
+		Topics:      []string{"go", "oss"},
 		FilesPresent: map[string]bool{
 			"CONTRIBUTING.MD":                      true,
 			"CODE_OF_CONDUCT.MD":                   true,
@@ -100,4 +100,33 @@ func TestBuildRemediationDraft(t *testing.T) {
 	if _, err := BuildRemediationDraft(ctx, failingLLM, db.WorkspaceSettings{LLMAPIKey: "sk-1"}, repo, "security_policy"); err == nil {
 		t.Fatalf("expected error when LLM provider fails")
 	}
+}
+
+// TRACEABILITY_MAPPING: REQ-051
+func TestBuildRemediationDraftWorkflowTemplates(t *testing.T) {
+	llmCalls := 0
+	llmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		llmCalls++
+		_, _ = w.Write([]byte(`{"content":"from the LLM"}`))
+	}))
+	defer llmSrv.Close()
+	llmClient := llm.NewClient(llmSrv.URL, llmSrv.Client())
+	settings := db.WorkspaceSettings{LLMAPIKey: "sk-1"}
+	repo := db.Repository{FullName: "octo/demo"}
+
+	paths := map[string]string{}
+	for _, key := range []string{"openssf_scorecard", "release_automation"} {
+		draft, err := BuildRemediationDraft(context.Background(), llmClient, settings, repo, key)
+		if err != nil {
+			t.Fatalf("%s: %v", key, err)
+		}
+		if !strings.HasPrefix(draft.CommitMessage, "ci:") || !strings.Contains(draft.Content, "runs-on: ubuntu-latest") || draft.BranchName != "ossalot/remediate-"+key {
+			t.Fatalf("%s: unexpected draft %+v", key, draft)
+		}
+		paths[key] = draft.FilePath
+	}
+	if paths["openssf_scorecard"] != ".github/workflows/scorecard.yml" || paths["release_automation"] != ".github/workflows/release.yml" || llmCalls != 0 {
+		t.Fatalf("unexpected paths %v or LLM calls %d", paths, llmCalls)
+	}
+	t.Logf("scorecard=%s release=%s llm_calls=%d", paths["openssf_scorecard"], paths["release_automation"], llmCalls)
 }

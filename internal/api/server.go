@@ -201,7 +201,7 @@ func (s *Server) handleAuditRepo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, updated)
 }
 
-// TRACEABILITY_MAPPING: REQ-011
+// TRACEABILITY_MAPPING: REQ-011, REQ-043
 func (s *Server) handleRemediateRepo(w http.ResponseWriter, r *http.Request) {
 	repo, ok := s.store.GetRepository(r.PathValue("id"))
 	if !ok {
@@ -228,7 +228,7 @@ func (s *Server) handleRemediateRepo(w http.ResponseWriter, r *http.Request) {
 			Owner:         repo.Owner,
 			Repo:          repo.Name,
 			IsOwned:       repo.IsOwned,
-			BaseBranch:    "main",
+			BaseBranch:    "", // the client targets the repository's default branch
 			NewBranch:     draft.BranchName,
 			FilePath:      draft.FilePath,
 			FileContent:   draft.Content,

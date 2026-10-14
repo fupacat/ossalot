@@ -7,12 +7,43 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 // TRACEABILITY_MAPPING: REQ-007
 var ErrRepoNotOwned = errors.New("repository is not marked as owned by this workspace")
+
+// TRACEABILITY_MAPPING: REQ-046
+var ErrWorkflowScopeRequired = errors.New("GitHub requires the 'workflow' OAuth scope to create or edit files in .github/workflows/; grant it with 'gh auth refresh -s workflow', or copy the generated file and commit it yourself")
+
+// TRACEABILITY_MAPPING: REQ-043, REQ-045, REQ-046, REQ-047
+type StatusError struct {
+	StatusCode int
+	URL        string
+	Body       string
+}
+
+// TRACEABILITY_MAPPING: REQ-043, REQ-045, REQ-046, REQ-047
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("unexpected HTTP status %d for %s", e.StatusCode, e.URL)
+}
+
+// TRACEABILITY_MAPPING: REQ-043, REQ-044, REQ-046, REQ-047
+func hasStatus(err error, codes ...int) bool {
+	var se *StatusError
+	if !errors.As(err, &se) {
+		return false
+	}
+	for _, code := range codes {
+		if se.StatusCode == code {
+			return true
+		}
+	}
+	return false
+}
 
 // TRACEABILITY_MAPPING: REQ-006
 type RepoInspection struct {
@@ -52,11 +83,13 @@ type PullRequestRequest struct {
 	PRBody        string `json:"pr_body"`
 }
 
-// TRACEABILITY_MAPPING: REQ-006, REQ-007
+// TRACEABILITY_MAPPING: REQ-006, REQ-007, REQ-041
 type Client struct {
 	APIBaseURL       string
 	ScorecardBaseURL string
 	HTTPClient       *http.Client
+	// TokenFunc, when set, picks the token for each request to APIBaseURL from the caller's token.
+	TokenFunc func(requestToken string) string
 }
 
 // TRACEABILITY_MAPPING: REQ-006
@@ -91,7 +124,7 @@ func ParseRepoCoordinates(input string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-// TRACEABILITY_MAPPING: REQ-006, REQ-007
+// TRACEABILITY_MAPPING: REQ-006, REQ-007, REQ-041
 func (c *Client) doJSON(ctx context.Context, method, url, token string, body any, out any) error {
 	var bodyReader *bytes.Reader
 	if body != nil {
@@ -102,6 +135,10 @@ func (c *Client) doJSON(ctx context.Context, method, url, token string, body any
 	}
 	req, _ := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	req.Header.Set("Accept", "application/vnd.github+json")
+	// Only GitHub API requests get the resolved token; other hosts (Scorecard) never see it
+	if c.TokenFunc != nil && strings.HasPrefix(url, c.APIBaseURL) {
+		token = c.TokenFunc(token)
+	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -111,7 +148,8 @@ func (c *Client) doJSON(ctx context.Context, method, url, token string, body any
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected HTTP status %d for %s", resp.StatusCode, url)
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+		return &StatusError{StatusCode: resp.StatusCode, URL: url, Body: string(raw)}
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
 }
@@ -251,34 +289,109 @@ func (c *Client) ListAuthenticatedRepos(ctx context.Context, token string) ([]Re
 	return out, nil
 }
 
-// TRACEABILITY_MAPPING: REQ-007
+// TRACEABILITY_MAPPING: REQ-007, REQ-043, REQ-044, REQ-045, REQ-046
 func (c *Client) CreateRemediationPR(ctx context.Context, token string, req PullRequestRequest) (string, error) {
 	if !req.IsOwned {
 		return "", ErrRepoNotOwned
 	}
-	putURL := fmt.Sprintf("%s/repos/%s/%s/contents/%s", c.APIBaseURL, req.Owner, req.Repo, req.FilePath)
+	repoURL := fmt.Sprintf("%s/repos/%s/%s", c.APIBaseURL, req.Owner, req.Repo)
+	base := req.BaseBranch
+	if base == "" {
+		var meta ghRepoPayload
+		if err := c.doJSON(ctx, http.MethodGet, repoURL, token, nil, &meta); err != nil {
+			return "", err
+		}
+		base = meta.DefaultBranch
+	}
+	if err := c.ensureBranch(ctx, token, repoURL, base, req.NewBranch); err != nil {
+		return "", err
+	}
+
 	putPayload := map[string]string{
 		"message": req.CommitMessage,
 		"content": base64.StdEncoding.EncodeToString([]byte(req.FileContent)),
 		"branch":  req.NewBranch,
 	}
+	sha, err := c.existingFileSHA(ctx, token, repoURL, req.FilePath, req.NewBranch)
+	if err != nil {
+		return "", err
+	}
+	if sha != "" {
+		putPayload["sha"] = sha
+	}
 	var putResp map[string]any
-	if err := c.doJSON(ctx, http.MethodPut, putURL, token, putPayload, &putResp); err != nil {
+	if err := c.doJSON(ctx, http.MethodPut, repoURL+"/contents/"+req.FilePath, token, putPayload, &putResp); err != nil {
+		// GitHub answers 404, not 403, when the token lacks the workflow scope
+		if strings.HasPrefix(req.FilePath, ".github/workflows/") && hasStatus(err, http.StatusNotFound) {
+			return "", ErrWorkflowScopeRequired
+		}
 		return "", err
 	}
 
-	prURL := fmt.Sprintf("%s/repos/%s/%s/pulls", c.APIBaseURL, req.Owner, req.Repo)
 	prPayload := map[string]string{
 		"title": req.PRTitle,
 		"head":  req.NewBranch,
-		"base":  req.BaseBranch,
+		"base":  base,
 		"body":  req.PRBody,
 	}
 	var prResp struct {
 		HTMLURL string `json:"html_url"`
 	}
-	if err := c.doJSON(ctx, http.MethodPost, prURL, token, prPayload, &prResp); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, repoURL+"/pulls", token, prPayload, &prResp); err != nil {
+		var se *StatusError
+		if errors.As(err, &se) && se.StatusCode == http.StatusUnprocessableEntity && strings.Contains(se.Body, "A pull request already exists") {
+			return c.openPullRequestURL(ctx, token, repoURL, req.Owner, req.NewBranch)
+		}
 		return "", err
 	}
 	return prResp.HTMLURL, nil
+}
+
+// TRACEABILITY_MAPPING: REQ-043
+func (c *Client) ensureBranch(ctx context.Context, token, repoURL, base, branch string) error {
+	var existing map[string]any
+	err := c.doJSON(ctx, http.MethodGet, repoURL+"/git/ref/heads/"+branch, token, nil, &existing)
+	if !hasStatus(err, http.StatusNotFound) {
+		return err
+	}
+	var baseRef struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, repoURL+"/git/ref/heads/"+base, token, nil, &baseRef); err != nil {
+		return err
+	}
+	var created map[string]any
+	return c.doJSON(ctx, http.MethodPost, repoURL+"/git/refs", token, map[string]string{
+		"ref": "refs/heads/" + branch,
+		"sha": baseRef.Object.SHA,
+	}, &created)
+}
+
+// TRACEABILITY_MAPPING: REQ-044
+func (c *Client) existingFileSHA(ctx context.Context, token, repoURL, path, branch string) (string, error) {
+	var file struct {
+		SHA string `json:"sha"`
+	}
+	err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("%s/contents/%s?ref=%s", repoURL, path, url.QueryEscape(branch)), token, nil, &file)
+	if hasStatus(err, http.StatusNotFound) {
+		return "", nil
+	}
+	return file.SHA, err
+}
+
+// TRACEABILITY_MAPPING: REQ-045
+func (c *Client) openPullRequestURL(ctx context.Context, token, repoURL, owner, branch string) (string, error) {
+	var prs []struct {
+		HTMLURL string `json:"html_url"`
+	}
+	listURL := fmt.Sprintf("%s/pulls?state=open&head=%s", repoURL, url.QueryEscape(owner+":"+branch))
+	if err := c.doJSON(ctx, http.MethodGet, listURL, token, nil, &prs); err != nil {
+		return "", err
+	}
+	if len(prs) == 0 {
+		return "", fmt.Errorf("GitHub reported an existing pull request for %s, but none is open", branch)
+	}
+	return prs[0].HTMLURL, nil
 }
