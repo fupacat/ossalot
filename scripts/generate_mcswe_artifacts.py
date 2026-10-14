@@ -743,7 +743,8 @@ def approvals_for(index):
             approved.setdefault(sha, []).extend(info["approvers"])
     for sha, info in index.items():
         for target in info["approves"]:
-            full = next((s for s in index if s.startswith(target)), None)
+            # Targets may predate the baseline, so resolve them through git, not the index
+            full = git_output(["rev-parse", "--verify", "--quiet", f"{target}^{{commit}}"])
             if full and info["approvers"]:
                 approved.setdefault(full, []).extend(info["approvers"])
     return approved
@@ -763,12 +764,12 @@ def approval_problems(index, scope):
 
 def requirement_approval(req_id, defined, index, approved):
     """Approval column text for a requirement: the approver of its definition, or unapproved."""
-    if defined is None or defined not in index:
+    if defined is None:
         return "unapproved"
     approvers = approved.get(defined) or []
     if not approvers:
         return "unapproved"
-    author_email = index[defined]["author"][1]
+    author_email = git_output(["log", "-1", "--format=%ae", defined])
     first = approvers[0]
     if author_email and f"<{author_email}>" in first:
         return f"self (O4.4) {first}"
