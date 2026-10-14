@@ -235,11 +235,10 @@ def parse_lcov_branches(path):
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("SF:"):
             current = line[3:]
-            branches.setdefault(current, [])
         elif line.startswith("BRDA:") and current:
             fields = line[5:].split(",")
             taken = fields[3]
-            branches[current].append((int(fields[0]), 0 if taken in ("0", "-") else int(taken)))
+            branches.setdefault(current, []).append((int(fields[0]), 0 if taken in ("0", "-") else int(taken)))
     return branches
 
 
