@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/eric/ossalot/internal/db"
@@ -134,26 +136,51 @@ func TestServerServesAllAPIRoutes(t *testing.T) {
 	t.Logf("health=%d opportunities=%d jobs=%d", codes["/api/v1/health"], codes["/api/v1/opportunities"], codes["/api/v1/jobs"])
 }
 
-// TRACEABILITY_MAPPING: REQ-040
-func TestServerServesEmbeddedUI(t *testing.T) {
-	h, _ := startServer(t, filepath.Join(t.TempDir(), "ui.db"), nil)
+// TRACEABILITY_MAPPING: REQ-052
+func TestServerServesBuiltUI(t *testing.T) {
+	ui := fstest.MapFS{
+		"index.html":    {Data: []byte("<!DOCTYPE html><title>OSSAlot</title>")},
+		"assets/app.js": {Data: []byte("console.log('ui')")},
+	}
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := buildHandler(api, ui)
 
 	index := serve(h, http.MethodGet, "/", "")
 	if index.Code != http.StatusOK || !strings.Contains(index.Body.String(), "<title>OSSAlot") {
-		t.Fatalf("expected the embedded index.html at /, got %d", index.Code)
+		t.Fatalf("expected index.html at /, got %d %q", index.Code, index.Body.String())
 	}
-	module := serve(h, http.MethodGet, "/src/model.mjs", "")
-	moduleType := module.Header().Get("Content-Type")
-	if module.Code != http.StatusOK || !strings.HasPrefix(moduleType, "text/javascript") {
-		t.Fatalf("expected /src/model.mjs as text/javascript, got %d %q", module.Code, moduleType)
+	asset := serve(h, http.MethodGet, "/assets/app.js", "")
+	if asset.Code != http.StatusOK || !strings.Contains(asset.Header().Get("Content-Type"), "javascript") {
+		t.Fatalf("expected the bundled script with a JavaScript type, got %d %q", asset.Code, asset.Header().Get("Content-Type"))
 	}
-	if rec := serve(h, http.MethodGet, "/src/model.test.mjs", ""); rec.Code != http.StatusNotFound {
-		t.Fatalf("test files must not be embedded, got %d", rec.Code)
+	src := serve(h, http.MethodGet, "/src/model.mjs", "")
+	if src.Code != http.StatusNotFound {
+		t.Fatalf("/src/ is no longer served, got %d", src.Code)
 	}
-	if rec := serve(h, http.MethodGet, "/src/missing.txt", ""); rec.Code != http.StatusNotFound {
-		t.Fatalf("expected 404 for a missing file, got %d", rec.Code)
+
+	// The binary embeds web/dist, whose committed placeholder exists with or without a build
+	if _, err := fs.Stat(embeddedUI(), ".gitkeep"); err != nil {
+		t.Fatalf("embeddedUI must be rooted at web/dist: %v", err)
 	}
-	t.Logf("index=%d module=%d module_type=%s", index.Code, module.Code, strings.Split(moduleType, ";")[0])
+	t.Logf("index=%d asset=%d src=%d", index.Code, asset.Code, src.Code)
+}
+
+// TRACEABILITY_MAPPING: REQ-053
+func TestServerWithoutBuiltUI(t *testing.T) {
+	ui := fstest.MapFS{".gitkeep": {Data: []byte{}}}
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := buildHandler(api, ui)
+
+	index := serve(h, http.MethodGet, "/", "")
+	namesBuild := strings.Contains(index.Body.String(), "npm run build")
+	if index.Code != http.StatusServiceUnavailable || !namesBuild {
+		t.Fatalf("expected 503 naming npm run build, got %d %q", index.Code, index.Body.String())
+	}
+	apiCode := serve(h, http.MethodGet, "/api/v1/health", "").Code
+	if apiCode != http.StatusOK {
+		t.Fatalf("API routes must still answer without a UI, got %d", apiCode)
+	}
+	t.Logf("index=%d names_build=%t api=%d", index.Code, namesBuild, apiCode)
 }
 
 // TRACEABILITY_MAPPING: REQ-041

@@ -1,10 +1,11 @@
-// Package web embeds the UI so the ossalot binary serves it from any working directory.
+// Package web embeds the built UI so the ossalot binary serves it from any working directory.
 package web
 
 import "embed"
 
-// Assets holds dist/ (the page) and the src/ modules the page imports at runtime, without their tests.
-// TRACEABILITY_MAPPING: REQ-040
+// Assets holds dist/, the Vite build output. The committed placeholder dist/.gitkeep keeps the
+// pattern valid before a frontend build, so Go compiles without Node (ADR-029).
+// TRACEABILITY_MAPPING: REQ-052, REQ-053
 //
-//go:embed dist src/model.mjs src/*_model.mjs
+//go:embed all:dist
 var Assets embed.FS

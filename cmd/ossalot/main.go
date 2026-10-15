@@ -17,7 +17,7 @@ var (
 	listenFunc = http.ListenAndServe
 )
 
-// TRACEABILITY_MAPPING: REQ-012, REQ-039, REQ-042
+// TRACEABILITY_MAPPING: REQ-012, REQ-039, REQ-042, REQ-052
 func Run(args []string, envLookup config.EnvLookupFunc) int {
 	cfg := config.LoadFromEnv(envLookup)
 	fs := flag.NewFlagSet("ossalot", flag.ContinueOnError)
@@ -39,7 +39,7 @@ func Run(args []string, envLookup config.EnvLookupFunc) int {
 	go func() {
 		_, _ = runner.TriggerJob(context.Background(), enrichmentJobName)
 	}()
-	if err := listenFunc(*addr, buildHandler(srv)); err != nil {
+	if err := listenFunc(*addr, buildHandler(srv, embeddedUI())); err != nil {
 		return 2
 	}
 	return 0
