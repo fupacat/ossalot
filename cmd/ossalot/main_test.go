@@ -84,6 +84,25 @@ func TestCIWorkflowDefinition(t *testing.T) {
 	}
 }
 
+// TRACEABILITY_MAPPING: REQ-035
+func TestPRAutomationWorkflowDefinition(t *testing.T) {
+	wfPath := filepath.Join("..", "..", ".github", "workflows", "pr-automation.yml")
+	content, err := os.ReadFile(wfPath)
+	if err != nil {
+		t.Fatalf("failed to read PR automation workflow file: %v", err)
+	}
+	s := string(content)
+	if !containsStr(s, "pull_request_target") {
+		t.Errorf("missing pull_request_target trigger in PR automation workflow")
+	}
+	if !containsStr(s, "secrets.GITHUB_TOKEN") {
+		t.Errorf("missing GITHUB_TOKEN secret in PR automation workflow")
+	}
+	if !containsStr(s, "gh pr merge \"$PR_NUMBER\" --auto --squash") {
+		t.Errorf("missing auto-merge command in PR automation workflow")
+	}
+}
+
 func containsStr(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || filepath.Base(s) != "" && stringContains(s, substr))
 }

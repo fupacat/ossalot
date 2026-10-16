@@ -487,7 +487,7 @@ acceptance:
   kind: categorical
   precondition: Repository coordinates and desired pipeline type (basic_ci, sonar, copilot_failure_handler, copilot_review_handler, pr_automation).
   action: Call generatePipelineWorkflow for each type.
-  expected: Returns workflow filename, YAML content containing required permissions and actions, and installation instructions.
+  expected: Returns workflow filename, YAML content containing required permissions and actions, and installation instructions. The PR automation variant must emit .github/workflows/pr-automation.yml using the repository token, guard for tracked maintainers, and run gh pr merge "$PR_NUMBER" --auto --squash.
   method: test
   expected_output: "filename=.github/workflows/sonar.yml"
 ```
