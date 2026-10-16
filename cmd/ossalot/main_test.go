@@ -84,6 +84,28 @@ func TestCIWorkflowDefinition(t *testing.T) {
 	}
 }
 
+// TRACEABILITY_MAPPING: REQ-035
+func TestSonarWorkflowDefinition(t *testing.T) {
+	wfPath := filepath.Join("..", "..", ".github", "workflows", "sonar.yml")
+	content, err := os.ReadFile(wfPath)
+	if err != nil {
+		t.Fatalf("failed to read Sonar workflow file: %v", err)
+	}
+	s := string(content)
+	if !containsStr(s, "SonarCloud Quality Gate & Code Analysis") {
+		t.Errorf("missing SonarCloud workflow name")
+	}
+	if !containsStr(s, "SonarSource/sonarcloud-github-action@v2") {
+		t.Errorf("missing SonarCloud action in workflow")
+	}
+	if !containsStr(s, "SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}") {
+		t.Errorf("missing SONAR_TOKEN secret in workflow")
+	}
+	if !containsStr(s, "go test ./... -coverprofile=coverage.out") {
+		t.Errorf("missing Go coverage test command in workflow")
+	}
+}
+
 func containsStr(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || filepath.Base(s) != "" && stringContains(s, substr))
 }
