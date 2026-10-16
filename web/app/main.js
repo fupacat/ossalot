@@ -743,7 +743,7 @@
             file_content: pipe.content,
             branch_name: `ossalot/pipeline-${pipe.id}`,
             commit_message: `ci: add ${pipe.filename} via OSSAlot pipeline automation`,
-            pr_title: `chore(ci): add ${pipe.name} pipeline workflow`,
+            pr_title: `chore(ci): add ${PIPELINE_TEMPLATES[state.selectedPipelineType].name} pipeline workflow`,
             pr_body: `Automated pipeline workflow installation for ${pipe.filename} on ${repo.full_name}.`,
           }),
         });
