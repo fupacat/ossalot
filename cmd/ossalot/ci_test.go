@@ -32,3 +32,25 @@ func TestCIBuildsFrontendBeforeEvidence(t *testing.T) {
 	}
 	t.Logf("frontend_build_step=present order=node<build<evidence<go_build")
 }
+
+// TRACEABILITY_MAPPING: REQ-056
+func TestCopilotReviewHandlerDefinition(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "copilot-review-handler.yml"))
+	if err != nil {
+		t.Fatalf("read Copilot review workflow: %v", err)
+	}
+	wf := string(raw)
+	for _, marker := range []string{
+		"name: \"Auto-summon Copilot on Review Changes Requested\"",
+		"pull_request_review:",
+		"types: [submitted]",
+		"github.event.review.state == 'changes_requested'",
+		"GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+		"@copilot Changes were requested on this pull request",
+	} {
+		if !strings.Contains(wf, marker) {
+			t.Fatalf("review workflow missing %q", marker)
+		}
+	}
+	t.Logf("workflow=present trigger=pull_request_review secret=GITHUB_TOKEN")
+}

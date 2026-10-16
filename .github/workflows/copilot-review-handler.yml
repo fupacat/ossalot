@@ -1,0 +1,24 @@
+# TRACEABILITY_MAPPING: REQ-056
+name: "Auto-summon Copilot on Review Changes Requested"
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  dispatch-copilot:
+    name: Notify Copilot of Review Feedback
+    runs-on: ubuntu-latest
+    if: github.event.review.state == 'changes_requested'
+    permissions:
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Comment on PR to Summon Copilot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEWER: ${{ github.event.review.user.login }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "@copilot Changes were requested on this pull request by @$REVIEWER. Please review the feedback, implement the necessary corrections, and push an update."

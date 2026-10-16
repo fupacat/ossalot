@@ -771,3 +771,17 @@ acceptance:
   method: test
   expected_output: "issue_url=https://github.com/octocat/hello-world/issues/1 unowned=403"
 ```
+
+REQ-056 The repository SHALL include `.github/workflows/copilot-review-handler.yml` to trigger on `pull_request_review` submissions, check for `changes_requested`, and comment on the pull request with `@copilot` using the `GITHUB_TOKEN` secret.
+
+```yaml
+source: ADR-017
+status: active
+acceptance:
+  kind: categorical
+  precondition: The repository has a GitHub Actions workflow directory and the workflow is checked into the branch.
+  action: Read `.github/workflows/copilot-review-handler.yml` and validate the PR review trigger, state check, and CLI comment command.
+  expected: The workflow exists at the required path, reacts to `pull_request_review` events with `submitted`, checks for `changes_requested`, and invokes `gh pr comment` with `@copilot` using `secrets.GITHUB_TOKEN`.
+  method: test
+  expected_output: "workflow=present trigger=pull_request_review secret=GITHUB_TOKEN"
+```
