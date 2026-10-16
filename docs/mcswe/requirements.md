@@ -775,7 +775,7 @@ acceptance:
 REQ-056 The repository SHALL include a dedicated GitHub Actions workflow at `.github/workflows/copilot-ci-failure-handler.yml` that listens for completed `workflow_run` events and comments `@copilot` on pull requests when CI workflows fail.
 
 ```yaml
-source: ADR-035
+source: ADR-034
 status: active
 acceptance:
   kind: categorical
