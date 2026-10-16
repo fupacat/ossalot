@@ -339,3 +339,13 @@ decision: A pull request merged on GitHub approves every commit it brings in. Th
 consequences: No approval commits. The audit before a merge reports the branch's own commits as pending. Every change to main goes through a pull request merged on GitHub; squash and rebase merges are not recognized and would show as unapproved. Earlier merged pull requests now count as approvals, which clears the outstanding O4.1 on 91c4f12.
 superseded_by: null
 ```
+
+## ADR-034 Issue dispatching to repository agents for context-aware remediation and automation
+
+```yaml
+status: resolved
+context: Blindly creating pull requests with static templates overwrites existing repository files, destroying existing working CI pipelines (such as Node builds and test suites) or generating mismatched formats (such as README markdown in dependabot.yml). Modern repositories have resident coding agents (such as GitHub Copilot Workspace, @copilot, or CI bot automations) that have full codebase context, understand package managers, and can inspect existing configurations.
+decision: Implement an Issue Dispatcher in the GitHub client (CreateIssue) and API server (POST /api/v1/repos/{id}/issues). The action files a structured GitHub issue that tags @copilot with technical objectives, repository context, non-destructive guardrails (do not overwrite existing working CI/build steps), and reference templates. Owned-repo enforcement is preserved.
+consequences: Maintainers can trigger standards remediation and pipeline automation safely without risk of destructive file overwrites. The resident coding agent performs context-aware analysis and opens a verified, non-destructive pull request.
+superseded_by: null
+```

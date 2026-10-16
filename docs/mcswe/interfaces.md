@@ -131,7 +131,7 @@ data_schema: internal/engine/standards/auditor.go#RemediationDraft
 ```yaml
 component: api
 definition: internal/api/server.go#NewServer
-requirements: [REQ-011]
+requirements: [REQ-011, REQ-055]
 checker: go vet ./internal/api
 data_schema: null
 ```
@@ -504,4 +504,14 @@ definition: internal/engine/standards/auditor.go#BuildRemediationDraft
 requirements: [REQ-051]
 checker: go vet ./internal/engine/standards
 data_schema: internal/engine/standards/auditor.go#RemediationDraft
+```
+
+## IF-049 GitHub issue creator
+
+```yaml
+component: github
+definition: internal/github/client.go#Client.CreateIssue
+requirements: [REQ-055]
+checker: go vet ./internal/github
+data_schema: internal/github/client.go#IssueRequest
 ```

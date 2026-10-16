@@ -757,3 +757,17 @@ acceptance:
   method: test
   expected_output: "frontend_build_step=present order=node<build<evidence<go_build"
 ```
+
+REQ-055 The GitHub client and API server SHALL support creating GitHub issues on owned repositories with structured maintainer directives and @copilot agent prompts, returning the created issue URL and number, and SHALL reject issue creation on unowned repositories with HTTP 403.
+
+```yaml
+source: ADR-034
+status: active
+acceptance:
+  kind: categorical
+  precondition: An initialized API server backed by a store holding owned and unowned repositories, and a mock GitHub REST server.
+  action: Send POST /api/v1/repos/{id}/issues with title, body, and labels for an owned repository and for an unowned repository.
+  expected: Returns status 200 with issue HTML URL and number for the owned repository; returns status 403 for the unowned repository.
+  method: test
+  expected_output: "issue_url=https://github.com/octocat/hello-world/issues/1 unowned=403"
+```
