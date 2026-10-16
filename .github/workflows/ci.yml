@@ -4,9 +4,23 @@ on:
     branches: [main]
   pull_request:
 jobs:
+  # TRACEABILITY_MAPPING: REQ-032, REQ-054
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify fupacat/ossalot (Go)
-        run: echo "Running CI checks"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build frontend
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - name: Verify fupacat/ossalot (test evidence)
+        run: python3 scripts/run_evidence.py test
+      - name: Verify fupacat/ossalot (coverage evidence)
+        run: python3 scripts/run_evidence.py coverage
+      - name: Build Go binary
+        run: go build ./cmd/ossalot
