@@ -53,7 +53,7 @@ type AuditRecord struct {
 	CreatedAt      string            `json:"created_at"`
 }
 
-// TRACEABILITY_MAPPING: REQ-004
+// TRACEABILITY_MAPPING: REQ-004, REQ-056
 type Repository struct {
 	ID              string       `json:"id"`
 	WorkspaceID     string       `json:"workspace_id"`
@@ -68,6 +68,24 @@ type Repository struct {
 	StandardsScore  int          `json:"standards_score"`
 	LastSyncedAt    string       `json:"last_synced_at"`
 	LatestAudit     *AuditRecord `json:"latest_audit,omitempty"`
+	DefaultBranch   string       `json:"default_branch,omitempty"`
+	BaseBranch      string       `json:"base_branch,omitempty"`
+	BranchPrefix    string       `json:"branch_prefix,omitempty"`
+	CopilotHandle   string       `json:"copilot_handle,omitempty"`
+	CopilotPrompt   string       `json:"copilot_prompt,omitempty"`
+	IssueLabels     string       `json:"issue_labels,omitempty"`
+}
+
+// TRACEABILITY_MAPPING: REQ-056
+type RepoPatch struct {
+	IsOwned       *bool   `json:"is_owned,omitempty"`
+	DefaultBranch *string `json:"default_branch,omitempty"`
+	BaseBranch    *string `json:"base_branch,omitempty"`
+	BranchPrefix  *string `json:"branch_prefix,omitempty"`
+	CopilotHandle *string `json:"copilot_handle,omitempty"`
+	CopilotPrompt *string `json:"copilot_prompt,omitempty"`
+	IssueLabels   *string `json:"issue_labels,omitempty"`
+	Description   *string `json:"description,omitempty"`
 }
 
 // TRACEABILITY_MAPPING: REQ-002, REQ-003, REQ-004
@@ -172,7 +190,7 @@ func (s *Store) GetSettingsRedacted() WorkspaceSettings {
 	return out
 }
 
-// TRACEABILITY_MAPPING: REQ-004
+// TRACEABILITY_MAPPING: REQ-004, REQ-056
 func (s *Store) UpsertRepository(repo Repository) (Repository, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -182,6 +200,24 @@ func (s *Store) UpsertRepository(repo Repository) (Repository, error) {
 			repo.ID = existing.ID
 			if repo.LatestAudit == nil {
 				repo.LatestAudit = existing.LatestAudit
+			}
+			if repo.DefaultBranch == "" {
+				repo.DefaultBranch = existing.DefaultBranch
+			}
+			if repo.BaseBranch == "" {
+				repo.BaseBranch = existing.BaseBranch
+			}
+			if repo.BranchPrefix == "" {
+				repo.BranchPrefix = existing.BranchPrefix
+			}
+			if repo.CopilotHandle == "" {
+				repo.CopilotHandle = existing.CopilotHandle
+			}
+			if repo.CopilotPrompt == "" {
+				repo.CopilotPrompt = existing.CopilotPrompt
+			}
+			if repo.IssueLabels == "" {
+				repo.IssueLabels = existing.IssueLabels
 			}
 			s.state.Repos[i] = repo
 			return repo, s.flushLocked()
@@ -193,6 +229,46 @@ func (s *Store) UpsertRepository(repo Repository) (Repository, error) {
 	}
 	s.state.Repos = append(s.state.Repos, repo)
 	return repo, s.flushLocked()
+}
+
+// TRACEABILITY_MAPPING: REQ-056
+func (s *Store) PatchRepository(id string, patch RepoPatch) (Repository, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, r := range s.state.Repos {
+		if r.ID == id {
+			if patch.IsOwned != nil {
+				r.IsOwned = *patch.IsOwned
+			}
+			if patch.DefaultBranch != nil {
+				r.DefaultBranch = *patch.DefaultBranch
+			}
+			if patch.BaseBranch != nil {
+				r.BaseBranch = *patch.BaseBranch
+			}
+			if patch.BranchPrefix != nil {
+				r.BranchPrefix = *patch.BranchPrefix
+			}
+			if patch.CopilotHandle != nil {
+				r.CopilotHandle = *patch.CopilotHandle
+			}
+			if patch.CopilotPrompt != nil {
+				r.CopilotPrompt = *patch.CopilotPrompt
+			}
+			if patch.IssueLabels != nil {
+				r.IssueLabels = *patch.IssueLabels
+			}
+			if patch.Description != nil {
+				r.Description = *patch.Description
+			}
+			s.state.Repos[i] = r
+			if err := s.flushLocked(); err != nil {
+				return Repository{}, false, err
+			}
+			return r, true, nil
+		}
+	}
+	return Repository{}, false, nil
 }
 
 // TRACEABILITY_MAPPING: REQ-004

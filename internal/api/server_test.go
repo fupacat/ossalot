@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -226,3 +227,66 @@ func TestAPIServerEndpoints(t *testing.T) {
 		t.Fatalf("expected 404 on second delete")
 	}
 }
+
+// TRACEABILITY_MAPPING: REQ-056
+func TestPatchRepoEndpoint(t *testing.T) {
+	dbDir := t.TempDir()
+	dbPath := filepath.Join(dbDir, "api_patch.db")
+	store, err := db.OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	repo, err := store.UpsertRepository(db.Repository{
+		Owner:    "fupacat",
+		Name:     "ossalot",
+		FullName: "fupacat/ossalot",
+		IsOwned:  false,
+	})
+	if err != nil {
+		t.Fatalf("UpsertRepository failed: %v", err)
+	}
+
+	server := NewServer(store, github.NewClient("", "", nil), llm.NewClient("", nil))
+
+	// Bad JSON body -> 400
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/repos/"+repo.ID, bytes.NewBufferString("{bad-json"))
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad JSON, got %d", rec.Code)
+	}
+
+	// Missing repo -> 404
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/repos/missing-id", bytes.NewBufferString(`{"is_owned": true}`))
+	rec = httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing repo, got %d", rec.Code)
+	}
+
+	// Valid patch -> 200
+	payload := `{"is_owned": true, "default_branch": "main", "base_branch": "main", "branch_prefix": "copilot/", "copilot_handle": "@copilot", "copilot_prompt": "Run tests", "issue_labels": "copilot", "description": "Updated"}`
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/repos/"+repo.ID, bytes.NewBufferString(payload))
+	rec = httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for valid patch, got %d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"copilot_handle":"@copilot"`)) {
+		t.Fatalf("expected patched response to contain copilot_handle, got: %s", rec.Body.String())
+	}
+
+	// Make directory read-only to trigger store flush error -> 500
+	_ = os.Chmod(dbDir, 0500)
+	defer func() { _ = os.Chmod(dbDir, 0700) }()
+	// On Linux, make dbPath read-only too
+	_ = os.Chmod(dbPath, 0400)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/repos/"+repo.ID, bytes.NewBufferString(`{"is_owned": false}`))
+	rec = httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on store flush error, got %d", rec.Code)
+	}
+}
+

@@ -28,7 +28,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-// TRACEABILITY_MAPPING: REQ-011
+// TRACEABILITY_MAPPING: REQ-011, REQ-055, REQ-056
 func NewServer(store *db.Store, ghClient *github.Client, llmClient *llm.Client) *Server {
 	s := &Server{
 		store:    store,
@@ -43,6 +43,7 @@ func NewServer(store *db.Store, ghClient *github.Client, llmClient *llm.Client) 
 	s.mux.HandleFunc("POST /api/v1/repos", s.handleAddRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/sync", s.handleSyncRepos)
 	s.mux.HandleFunc("GET /api/v1/repos/{id}", s.handleGetRepo)
+	s.mux.HandleFunc("PATCH /api/v1/repos/{id}", s.handlePatchRepo)
 	s.mux.HandleFunc("DELETE /api/v1/repos/{id}", s.handleDeleteRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/{id}/audit", s.handleAuditRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/{id}/remediate", s.handleRemediateRepo)
@@ -288,3 +289,23 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, res)
 }
+
+// TRACEABILITY_MAPPING: REQ-056
+func (s *Server) handlePatchRepo(w http.ResponseWriter, r *http.Request) {
+	var patch db.RepoPatch
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request JSON"})
+		return
+	}
+	updated, ok, err := s.store.PatchRepository(r.PathValue("id"), patch)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "repository not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
