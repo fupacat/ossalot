@@ -14,7 +14,7 @@ import (
 	"github.com/eric/ossalot/internal/llm"
 )
 
-// TRACEABILITY_MAPPING: REQ-011
+// TRACEABILITY_MAPPING: REQ-011, REQ-055
 func TestAPIServerEndpoints(t *testing.T) {
 	store, err := db.OpenStore(filepath.Join(t.TempDir(), "api.db"))
 	if err != nil {
@@ -64,6 +64,10 @@ func TestAPIServerEndpoints(t *testing.T) {
 	ghMux.HandleFunc("GET /repos/octocat/hello-world/contents/CONTRIBUTING.md", http.NotFound)
 	ghMux.HandleFunc("PUT /repos/octocat/hello-world/contents/CONTRIBUTING.md", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"content":{"path":"CONTRIBUTING.md"}}`))
+	})
+	ghMux.HandleFunc("GET /repos/octocat/hello-world/contents/.github/workflows/sonar.yml", http.NotFound)
+	ghMux.HandleFunc("PUT /repos/octocat/hello-world/contents/.github/workflows/sonar.yml", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"content":{"path":".github/workflows/sonar.yml"}}`))
 	})
 	ghMux.HandleFunc("POST /repos/octocat/hello-world/pulls", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"html_url":"https://github.com/octocat/hello-world/pull/10"}`))
@@ -154,6 +158,17 @@ func TestAPIServerEndpoints(t *testing.T) {
 	}
 	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/remediate", `{"check_key":"contributing_guide","create_pr":true}`); rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte("pull/10")) {
 		t.Fatalf("expected 200 on PR creation, got %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Custom file remediation (REQ-055) with defaults and custom fields
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/remediate", `{"check_key":"sonar_analysis","file_path":".github/workflows/sonar.yml","file_content":"name: Sonar","create_pr":false}`); rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte(".github/workflows/sonar.yml")) {
+		t.Fatalf("expected 200 on custom file draft, got %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/remediate", `{"check_key":"sonar_analysis","file_path":".github/workflows/sonar.yml","file_content":"name: Sonar","create_pr":true}`); rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte("pull/10")) {
+		t.Fatalf("expected 200 on custom file PR creation with defaults, got %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/remediate", `{"check_key":"sonar_analysis","file_path":".github/workflows/sonar.yml","file_content":"name: Sonar","branch_name":"custom-br","commit_message":"ci: custom","pr_title":"chore: custom","pr_body":"custom body","create_pr":true}`); rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte("pull/10")) {
+		t.Fatalf("expected 200 on custom file PR creation with custom fields, got %d %s", rec.Code, rec.Body.String())
 	}
 
 	// Mark repo-1 unowned to test forbidden PR creation branch

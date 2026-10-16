@@ -719,8 +719,58 @@
       document.getElementById('modalContent').textContent = pipe.content;
       document.getElementById('modalFooter').innerHTML = `
         <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200">Copy YAML</button>
+        ${repo.is_owned ? `<button id="createPipelinePRBtn" onclick="createPipelinePR()" class="text-xs px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">1-Click Open GitHub PR</button>` : ''}
       `;
       document.getElementById('modalOverlay').classList.remove('hidden');
+    };
+
+    window.createPipelinePR = async () => {
+      const repo = currentRepo();
+      if (!repo) return;
+      const pipe = generatePipelineWorkflow(state.selectedPipelineType, repo.full_name);
+      const btn = document.getElementById('createPipelinePRBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Creating branch, commit & Pull Request on GitHub...';
+      }
+      try {
+        const res = await api(`/api/v1/repos/${repo.id}/remediate`, {
+          method: 'POST',
+          body: JSON.stringify({
+            check_key: pipe.id,
+            create_pr: true,
+            file_path: pipe.filename,
+            file_content: pipe.content,
+            branch_name: `ossalot/pipeline-${pipe.id}`,
+            commit_message: `ci: add ${pipe.filename} via OSSAlot pipeline automation`,
+            pr_title: `chore(ci): add ${pipe.name} pipeline workflow`,
+            pr_body: `Automated pipeline workflow installation for ${pipe.filename} on ${repo.full_name}.`,
+          }),
+        });
+        if (res.pr_url) {
+          document.getElementById('modalSubtitle').innerHTML = `
+            <div class="mt-2 p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-medium text-xs flex flex-wrap items-center justify-between gap-2">
+              <span>&check; Pull Request Created on GitHub!</span>
+              <a href="${res.pr_url}" target="_blank" rel="noopener" class="underline font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded-lg">View PR on GitHub &nearr;</a>
+            </div>
+          `;
+          if (btn) {
+            btn.outerHTML = `<a href="${res.pr_url}" target="_blank" rel="noopener" class="text-xs px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">Open PR on GitHub &nearr;</a>`;
+          }
+        } else {
+          document.getElementById('modalSubtitle').innerHTML = `<span class="text-emerald-400 font-semibold">Pull Request Created Successfully</span>`;
+        }
+      } catch (err) {
+        document.getElementById('modalSubtitle').innerHTML = `
+          <div class="mt-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium text-xs">
+            &cross; Error creating GitHub PR: ${err.message || 'Check repository permissions'}
+          </div>
+        `;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Retry 1-Click Open GitHub PR';
+        }
+      }
     };
 
     window.applyAllHygiene = () => {

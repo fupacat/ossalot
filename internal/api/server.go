@@ -201,7 +201,7 @@ func (s *Server) handleAuditRepo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, updated)
 }
 
-// TRACEABILITY_MAPPING: REQ-011, REQ-043
+// TRACEABILITY_MAPPING: REQ-011, REQ-043, REQ-055
 func (s *Server) handleRemediateRepo(w http.ResponseWriter, r *http.Request) {
 	repo, ok := s.store.GetRepository(r.PathValue("id"))
 	if !ok {
@@ -209,21 +209,58 @@ func (s *Server) handleRemediateRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		CheckKey string `json:"check_key"`
-		CreatePR bool   `json:"create_pr"`
+		CheckKey      string `json:"check_key"`
+		CreatePR      bool   `json:"create_pr"`
+		FilePath      string `json:"file_path"`
+		FileContent   string `json:"file_content"`
+		BranchName    string `json:"branch_name"`
+		CommitMessage string `json:"commit_message"`
+		PRTitle       string `json:"pr_title"`
+		PRBody        string `json:"pr_body"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request JSON"})
 		return
 	}
 	settings := s.store.GetSettingsRaw()
-	draft, err := standards.BuildRemediationDraft(r.Context(), s.llm, settings, repo, req.CheckKey)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
+	var draft standards.RemediationDraft
+	if req.FilePath != "" && req.FileContent != "" {
+		branch := req.BranchName
+		if branch == "" {
+			branch = fmt.Sprintf("ossalot/remediate-%s", req.CheckKey)
+		}
+		commitMsg := req.CommitMessage
+		if commitMsg == "" {
+			commitMsg = fmt.Sprintf("ci: add %s via OSSAlot automation", req.FilePath)
+		}
+		prTitle := req.PRTitle
+		if prTitle == "" {
+			prTitle = fmt.Sprintf("chore(ci): add %s", req.FilePath)
+		}
+		prBody := req.PRBody
+		if prBody == "" {
+			prBody = fmt.Sprintf("Automated CI workflow installation for `%s` on `%s`.", req.FilePath, repo.FullName)
+		}
+		draft = standards.RemediationDraft{
+			CheckKey:      req.CheckKey,
+			FilePath:      req.FilePath,
+			Content:       req.FileContent,
+			BranchName:    branch,
+			CommitMessage: commitMsg,
+			PRTitle:       prTitle,
+			PRBody:        prBody,
+		}
+	} else {
+		var err error
+		draft, err = standards.BuildRemediationDraft(r.Context(), s.llm, settings, repo, req.CheckKey)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
 	}
 	prURL := ""
 	if req.CreatePR {
+		var err error
 		prURL, err = s.ghClient.CreateRemediationPR(r.Context(), settings.GitHubToken, github.PullRequestRequest{
 			Owner:         repo.Owner,
 			Repo:          repo.Name,
