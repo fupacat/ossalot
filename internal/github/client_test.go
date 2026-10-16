@@ -176,3 +176,51 @@ func TestCreateRemediationPR(t *testing.T) {
 		t.Fatalf("expected error on POST PR failure")
 	}
 }
+
+// TRACEABILITY_MAPPING: REQ-055
+func TestCreateIssue(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /repos/octocat/hello-world/issues", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"number":101,"url":"https://api.github.com/repos/octocat/hello-world/issues/101","html_url":"https://github.com/octocat/hello-world/issues/101"}`))
+	})
+	mux.HandleFunc("POST /repos/octocat/fail/issues", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := NewClient(srv.URL, srv.URL, srv.Client())
+	ctx := context.Background()
+
+	// Unowned repository guardrail
+	if _, err := client.CreateIssue(ctx, "tok", IssueRequest{
+		Owner:   "octocat",
+		Repo:    "hello-world",
+		IsOwned: false,
+	}); err != ErrRepoNotOwned {
+		t.Fatalf("expected ErrRepoNotOwned for unowned repo, got: %v", err)
+	}
+
+	// Success with labels
+	res, err := client.CreateIssue(ctx, "tok", IssueRequest{
+		Owner:   "octocat",
+		Repo:    "hello-world",
+		IsOwned: true,
+		Title:   "Configure CI",
+		Body:    "Please add CI",
+		Labels:  []string{"ci", "copilot"},
+	})
+	if err != nil || res.Number != 101 || res.HTMLURL != "https://github.com/octocat/hello-world/issues/101" {
+		t.Fatalf("CreateIssue failed: %+v err: %v", res, err)
+	}
+
+	// Error path
+	if _, err := client.CreateIssue(ctx, "tok", IssueRequest{
+		Owner:   "octocat",
+		Repo:    "fail",
+		IsOwned: true,
+	}); err == nil {
+		t.Fatalf("expected error from fail repo")
+	}
+}

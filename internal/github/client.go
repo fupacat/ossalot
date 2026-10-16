@@ -395,3 +395,48 @@ func (c *Client) openPullRequestURL(ctx context.Context, token, repoURL, owner, 
 	}
 	return prs[0].HTMLURL, nil
 }
+
+// TRACEABILITY_MAPPING: REQ-055
+type IssueRequest struct {
+	Owner   string   `json:"owner"`
+	Repo    string   `json:"repo"`
+	IsOwned bool     `json:"is_owned"`
+	Title   string   `json:"title"`
+	Body    string   `json:"body"`
+	Labels  []string `json:"labels,omitempty"`
+}
+
+// TRACEABILITY_MAPPING: REQ-055
+type IssueResult struct {
+	Number  int    `json:"number"`
+	URL     string `json:"url"`
+	HTMLURL string `json:"html_url"`
+}
+
+// TRACEABILITY_MAPPING: REQ-055
+func (c *Client) CreateIssue(ctx context.Context, token string, req IssueRequest) (IssueResult, error) {
+	if !req.IsOwned {
+		return IssueResult{}, ErrRepoNotOwned
+	}
+	repoURL := fmt.Sprintf("%s/repos/%s/%s/issues", c.APIBaseURL, req.Owner, req.Repo)
+	payload := map[string]any{
+		"title": req.Title,
+		"body":  req.Body,
+	}
+	if len(req.Labels) > 0 {
+		payload["labels"] = req.Labels
+	}
+	var ghResp struct {
+		Number  int    `json:"number"`
+		URL     string `json:"url"`
+		HTMLURL string `json:"html_url"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, repoURL, token, payload, &ghResp); err != nil {
+		return IssueResult{}, err
+	}
+	return IssueResult{
+		Number:  ghResp.Number,
+		URL:     ghResp.URL,
+		HTMLURL: ghResp.HTMLURL,
+	}, nil
+}
