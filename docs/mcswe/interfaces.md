@@ -515,3 +515,13 @@ requirements: [REQ-055]
 checker: go vet ./internal/github
 data_schema: internal/github/client.go#IssueRequest
 ```
+
+## IF-050 CI failure Copilot summon workflow
+
+```yaml
+component: cli
+definition: .github/workflows/copilot-ci-failure-handler.yml
+requirements: [REQ-056]
+checker: python3 scripts/run_evidence.py test
+data_schema: null
+```
