@@ -339,3 +339,13 @@ decision: A pull request merged on GitHub approves every commit it brings in. Th
 consequences: No approval commits. The audit before a merge reports the branch's own commits as pending. Every change to main goes through a pull request merged on GitHub; squash and rebase merges are not recognized and would show as unapproved. Earlier merged pull requests now count as approvals, which clears the outstanding O4.1 on 91c4f12.
 superseded_by: null
 ```
+
+## ADR-034 Custom pipeline workflow installation via remediation endpoint
+
+```yaml
+status: resolved
+context: The CI & Automation tab presents five production pipeline templates (standard CI, SonarCloud analysis, auto-Copilot failure summoning, auto-Copilot review handler, and PR auto-merge), but previously only supported copying YAML. Maintainers need the same 1-click GitHub PR creation capability for arbitrary pipeline workflows as exists for standard audit file checks.
+decision: Extend the POST /api/v1/repos/{id}/remediate endpoint to accept custom file_path, file_content, branch_name, commit_message, pr_title, and pr_body parameters. When provided, the endpoint bypasses standard check lookup, constructs the remediation draft directly, and opens the pull request on owned repositories.
+consequences: The CI & Automation and Code Hygiene tabs can trigger automated pull requests directly from the UI without requiring each workflow or configuration to be pre-registered as a fixed standards check. Security guardrails (owned repository enforcement, secret masking, and workflow scope verification) remain strictly enforced.
+superseded_by: null
+```

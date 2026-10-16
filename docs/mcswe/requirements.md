@@ -757,3 +757,17 @@ acceptance:
   method: test
   expected_output: "frontend_build_step=present order=node<build<evidence<go_build"
 ```
+
+REQ-055 The remediation API endpoint SHALL accept custom `file_path` and `file_content` payload fields, creating the branch, committing the file content, and opening a pull request when `create_pr` is true on an owned repository without requiring a pre-registered check key.
+
+```yaml
+source: ADR-034
+status: active
+acceptance:
+  kind: categorical
+  precondition: An initialized API server backed by an owned repository in the store and a mock GitHub client.
+  action: Send POST /api/v1/repos/{id}/remediate with file_path, file_content, and create_pr set to true.
+  expected: Returns status 200 with a draft containing the custom file path and content, and returns the pull request URL from the mock client.
+  method: test
+  expected_output: "file_path=.github/workflows/custom.yml pr_created=true"
+```

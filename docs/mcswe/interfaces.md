@@ -131,7 +131,7 @@ data_schema: internal/engine/standards/auditor.go#RemediationDraft
 ```yaml
 component: api
 definition: internal/api/server.go#NewServer
-requirements: [REQ-011]
+requirements: [REQ-011, REQ-055]
 checker: go vet ./internal/api
 data_schema: null
 ```
