@@ -1,0 +1,25 @@
+name: "PR Lifecycle Automation"
+
+on:
+  pull_request_target:
+    types: [opened, converted_to_draft, edited, labeled]
+
+jobs:
+  manage-pr:
+    name: Manage PR State & Auto-merge
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Enable Auto-Merge
+        if: |
+          github.event.pull_request.state == 'open' &&
+          !startsWith(github.event.pull_request.title, '[WIP]') &&
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr merge "$PR_NUMBER" --auto --squash || true
