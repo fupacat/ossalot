@@ -771,3 +771,18 @@ acceptance:
   method: test
   expected_output: "issue_url=https://github.com/octocat/hello-world/issues/1 unowned=403"
 ```
+
+REQ-056 The API server and datastore SHALL support updating repository configuration including ownership, default branch, target base branch, branch prefix, Copilot agent handle, prompt directives, and issue labels via `PATCH /api/v1/repos/{id}`, and the repository configuration model SHALL validate repository settings and compose agent dispatch prompts with configured branch targets and directives.
+
+```yaml
+source: ADR-035
+status: active
+acceptance:
+  kind: categorical
+  precondition: An initialized API server backed by a store holding a repository, and the repository configuration JavaScript model.
+  action: Send PATCH /api/v1/repos/{id} with updated branch and Copilot configuration; evaluate the repository configuration model with custom and default parameters.
+  expected: PATCH returns 200 with updated fields; model validates valid and invalid configurations and produces agent prompts containing the configured base branch, agent handle, and prompt directives.
+  method: test
+  expected_output: "patch_status=200 handle_customized=true prompt_contains_directives=true invalid_rejected=true"
+```
+

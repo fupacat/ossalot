@@ -6,6 +6,7 @@
     import { PIPELINE_TEMPLATES, generatePipelineWorkflow } from '/src/pipeline_model.mjs';
     import { generateHygieneConfigs } from '/src/hygiene_model.mjs';
     import { evaluateSonarOnboarding } from '/src/sonar_model.mjs';
+    import { validateRepoConfig, normalizeRepoConfig, composeAgentPrompt, checkCopilotWorkflows } from '/src/repo_config_model.mjs';
 
     let state = {
       repos: [],
@@ -463,6 +464,75 @@
           </div>
         `;
       }).join('');
+
+      // Render Repository, Branch & Copilot Configuration (REQ-056)
+      if (repo) {
+        const norm = normalizeRepoConfig(repo);
+        const ownedBadge = document.getElementById('repoConfigOwnedBadge');
+        if (ownedBadge) {
+          if (repo.is_owned) {
+            ownedBadge.className = 'text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium';
+            ownedBadge.textContent = 'Owned Workspace Repo';
+          } else {
+            ownedBadge.className = 'text-xs px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-medium';
+            ownedBadge.textContent = 'External / Public Repo';
+          }
+        }
+        const branchBadge = document.getElementById('repoConfigBranchBadge');
+        if (branchBadge) {
+          branchBadge.textContent = `Target: ${norm.base_branch}`;
+        }
+        const ghLink = document.getElementById('repoConfigGhLink');
+        if (ghLink) {
+          ghLink.href = repo.html_url || `https://github.com/${repo.full_name}`;
+        }
+
+        const sel = document.getElementById('repoConfigRepoSelect');
+        if (sel) {
+          sel.innerHTML = state.repos.map(r =>
+            `<option value="${r.id}" ${r.id === repo.id ? 'selected' : ''}>${r.full_name}</option>`
+          ).join('');
+        }
+
+        const descInput = document.getElementById('repoConfigDesc');
+        if (descInput) descInput.value = repo.description || '';
+        const isOwnedBox = document.getElementById('repoConfigIsOwned');
+        if (isOwnedBox) isOwnedBox.checked = Boolean(repo.is_owned);
+        const defBranchInput = document.getElementById('repoConfigDefBranch');
+        if (defBranchInput) defBranchInput.value = repo.default_branch || norm.default_branch;
+        const baseBranchInput = document.getElementById('repoConfigBaseBranch');
+        if (baseBranchInput) baseBranchInput.value = repo.base_branch || norm.base_branch;
+        const branchPrefixInput = document.getElementById('repoConfigBranchPrefix');
+        if (branchPrefixInput) branchPrefixInput.value = repo.branch_prefix || norm.branch_prefix;
+        const agentHandleInput = document.getElementById('repoConfigAgentHandle');
+        if (agentHandleInput) agentHandleInput.value = repo.copilot_handle || norm.copilot_handle;
+        const issueLabelsInput = document.getElementById('repoConfigIssueLabels');
+        if (issueLabelsInput) issueLabelsInput.value = repo.issue_labels || norm.issue_labels;
+        const promptInput = document.getElementById('repoConfigPrompt');
+        if (promptInput) promptInput.value = repo.copilot_prompt || '';
+
+        const workflows = checkCopilotWorkflows({
+          ".github/workflows/copilot-ci-failure-handler.yml": Boolean(repo.latest_audit && repo.latest_audit.checks && repo.latest_audit.checks.some(c => c.check_key === 'copilot_ci_failure_handler' && c.status === 'pass')),
+          ".github/workflows/copilot-review-handler.yml": Boolean(repo.latest_audit && repo.latest_audit.checks && repo.latest_audit.checks.some(c => c.check_key === 'copilot_review_handler' && c.status === 'pass')),
+        });
+
+        const wfList = document.getElementById('copilotWorkflowsList');
+        if (wfList) {
+          wfList.innerHTML = Object.values(workflows).map(wf => `
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-semibold text-white">${wf.name}</div>
+                <div class="text-[11px] text-indigo-300 font-mono">${wf.filename}</div>
+              </div>
+              <button type="button" onclick="dispatchWorkflowPreset('${wf.id}')" class="text-xs px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30">
+                Dispatch to Agent
+              </button>
+            </div>
+          `).join('');
+        }
+
+        window.updateRepoPromptPreview();
+      }
     }
 
     // Expose handlers to window
@@ -526,14 +596,24 @@
 
     window.dispatchAgentIssue = async (checkKey, filePath) => {
       const repo = currentRepo();
+      const norm = normalizeRepoConfig(repo);
       const btn = document.getElementById('dispatchIssueBtn');
       if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Filing issue on GitHub for @copilot...';
+        btn.textContent = `Filing issue on GitHub for ${norm.copilot_handle}...`;
       }
       const content = document.getElementById('modalContent').textContent;
       const title = `[OSSAlot] Configure ${checkKey} (${filePath || 'Standards Remediation'})`;
-      const body = `## Summary\nOSSAlot standards audit identified an opportunity to improve repository health: **\`${checkKey}\`**.\n\n## Context\n- **Repository**: \`${repo.full_name}\`\n- **Primary Language**: \`${repo.primary_language || 'Software'}\`\n- **Target File / Path**: \`${filePath || checkKey}\`\n\n## Instructions for Repository Agent (@copilot)\n@copilot:\nPlease inspect this repository's codebase and existing workflows (in \`.github/workflows/\`), then implement the required changes by opening a pull request.\n\n**Important Guardrails**:\n1. Carefully inspect existing workflows and build files before proposing changes.\n2. Do **NOT** overwrite, truncate, or remove existing CI, test, build, or governance steps.\n3. Integrate the new configuration non-destructively.\n4. Ensure all unit tests and builds continue to pass.\n\n<details>\n<summary>Reference Specification / Recommended Content</summary>\n\n\`\`\`\n${content}\n\`\`\`\n</details>\n`;
+      const body = composeAgentPrompt(repo, {
+        title: `Configure ${checkKey} (${filePath || 'Standards Remediation'})`,
+        details: `OSSAlot standards audit identified an opportunity to improve repository health: **\`${checkKey}\`**.\nTarget File: \`${filePath || checkKey}\``,
+        specificationYaml: content,
+      });
+
+      const labels = (repo.issue_labels || 'copilot, remediation')
+        .split(',')
+        .map(l => l.trim())
+        .filter(Boolean);
 
       try {
         const res = await api(`/api/v1/repos/${repo.id}/issues`, {
@@ -541,13 +621,13 @@
           body: JSON.stringify({
             title,
             body,
-            labels: ['ossalot', 'remediation'],
+            labels,
           }),
         });
         if (res.html_url) {
           document.getElementById('modalSubtitle').innerHTML = `
             <div class="mt-2 p-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-medium text-xs flex flex-wrap items-center justify-between gap-2">
-              <span>&check; GitHub Issue #${res.number} Filed for @copilot!</span>
+              <span>&check; GitHub Issue #${res.number} Filed for ${norm.copilot_handle}!</span>
               <a href="${res.html_url}" target="_blank" rel="noopener" class="underline font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded-lg">View Issue on GitHub &nearr;</a>
             </div>
           `;
@@ -563,7 +643,7 @@
         `;
         if (btn) {
           btn.disabled = false;
-          btn.textContent = 'Retry Dispatch Issue (@copilot)';
+          btn.textContent = `Retry Dispatch Issue (${norm.copilot_handle})`;
         }
       }
     };
@@ -778,16 +858,26 @@
     window.dispatchPipelineIssue = async () => {
       const repo = currentRepo();
       if (!repo) return;
+      const norm = normalizeRepoConfig(repo);
       const pipe = generatePipelineWorkflow(state.selectedPipelineType, repo.full_name);
       const pipeTemplate = PIPELINE_TEMPLATES[state.selectedPipelineType] || {};
       const pipeName = pipeTemplate.name || state.selectedPipelineType;
       const btn = document.getElementById('dispatchPipelineIssueBtn');
       if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Filing issue on GitHub for @copilot...';
+        btn.textContent = `Filing issue on GitHub for ${norm.copilot_handle}...`;
       }
       const title = `[OSSAlot] Configure ${pipeName} (${pipe.filename})`;
-      const body = `## Summary\nOSSAlot recommends configuring the **${pipeName}** automation workflow on \`${repo.full_name}\`.\n\n## Context\n- **Repository**: \`${repo.full_name}\`\n- **Primary Language**: \`${repo.primary_language || 'Software'}\`\n- **Target Workflow File**: \`${pipe.filename}\`\n${pipe.required_secret ? `- **Required Repository Secret**: \`${pipe.required_secret}\`\n` : ''}\n## Instructions for Repository Agent (@copilot)\n@copilot:\nPlease inspect this repository's existing codebase, workflows in \`.github/workflows/\`, and build configuration, then implement this automation by opening a pull request.\n\n**Important Guardrails**:\n1. Inspect existing workflows before proposing changes.\n2. Do **NOT** overwrite, truncate, or remove existing CI, test, build, or governance steps.\n3. Integrate the new capability cleanly (e.g., as a dedicated workflow file \`${pipe.filename}\` or supplemental step).\n4. Ensure all existing build and verification workflows continue to pass.\n\n<details>\n<summary>Reference Specification / Recommended Workflow Configuration</summary>\n\n\`\`\`yaml\n${pipe.content}\n\`\`\`\n</details>\n`;
+      const body = composeAgentPrompt(repo, {
+        title: `Configure ${pipeName} (${pipe.filename})`,
+        details: `OSSAlot recommends configuring the **${pipeName}** automation workflow on \`${repo.full_name}\`.\nTarget Workflow File: \`${pipe.filename}\`${pipe.required_secret ? `\nRequired Repository Secret: \`${pipe.required_secret}\`` : ''}`,
+        specificationYaml: pipe.content,
+      });
+
+      const labels = (repo.issue_labels || 'copilot, pipeline, automation')
+        .split(',')
+        .map(l => l.trim())
+        .filter(Boolean);
 
       try {
         const res = await api(`/api/v1/repos/${repo.id}/issues`, {
@@ -795,13 +885,13 @@
           body: JSON.stringify({
             title,
             body,
-            labels: ['ossalot', 'pipeline', 'automation'],
+            labels,
           }),
         });
         if (res.html_url) {
           document.getElementById('modalSubtitle').innerHTML = `
             <div class="mt-2 p-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-medium text-xs flex flex-wrap items-center justify-between gap-2">
-              <span>&check; GitHub Issue #${res.number} Filed for @copilot!</span>
+              <span>&check; GitHub Issue #${res.number} Filed for ${norm.copilot_handle}!</span>
               <a href="${res.html_url}" target="_blank" rel="noopener" class="underline font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded-lg">View Issue on GitHub &nearr;</a>
             </div>
           `;
@@ -817,9 +907,103 @@
         `;
         if (btn) {
           btn.disabled = false;
-          btn.textContent = 'Retry Dispatch Issue (@copilot)';
+          btn.textContent = `Retry Dispatch Issue (${norm.copilot_handle})`;
         }
       }
+    };
+
+    window.updateRepoPromptPreview = () => {
+      const repo = currentRepo();
+      if (!repo) return;
+      const baseBranch = (document.getElementById('repoConfigBaseBranch') || {}).value || repo.base_branch || repo.default_branch || 'main';
+      const branchPrefix = (document.getElementById('repoConfigBranchPrefix') || {}).value || repo.branch_prefix || 'copilot/';
+      const copilotHandle = (document.getElementById('repoConfigAgentHandle') || {}).value || repo.copilot_handle || '@copilot';
+      const copilotPrompt = (document.getElementById('repoConfigPrompt') || {}).value || repo.copilot_prompt || '';
+
+      const previewRepo = {
+        ...repo,
+        base_branch: baseBranch,
+        branch_prefix: branchPrefix,
+        copilot_handle: copilotHandle,
+        copilot_prompt: copilotPrompt,
+      };
+
+      const previewText = composeAgentPrompt(previewRepo, {
+        title: "Remediate Standards & CI Configuration",
+        details: "Automated analysis detected missing configurations.",
+        specificationYaml: "name: CI Workflow\non: [push, pull_request]",
+      });
+
+      const previewEl = document.getElementById('repoConfigPromptPreview');
+      if (previewEl) {
+        previewEl.textContent = previewText;
+      }
+    };
+
+    window.appendPromptDirective = (directive) => {
+      const el = document.getElementById('repoConfigPrompt');
+      if (el) {
+        el.value = el.value ? `${el.value.trim()}\n${directive}` : directive;
+        window.updateRepoPromptPreview();
+      }
+    };
+
+    window.onRepoConfigChange = async (repoId) => {
+      state.selectedRepoId = repoId;
+      await loadAll();
+    };
+
+    window.saveRepoConfig = async (e) => {
+      e.preventDefault();
+      const repo = currentRepo();
+      if (!repo) return;
+
+      const isOwned = document.getElementById('repoConfigIsOwned').checked;
+      const desc = document.getElementById('repoConfigDesc').value;
+      const defBranch = document.getElementById('repoConfigDefBranch').value;
+      const baseBranch = document.getElementById('repoConfigBaseBranch').value;
+      const branchPrefix = document.getElementById('repoConfigBranchPrefix').value;
+      const agentHandle = document.getElementById('repoConfigAgentHandle').value;
+      const issueLabels = document.getElementById('repoConfigIssueLabels').value;
+      const prompt = document.getElementById('repoConfigPrompt').value;
+
+      const validation = validateRepoConfig({
+        base_branch: baseBranch,
+        copilot_handle: agentHandle,
+        branch_prefix: branchPrefix,
+      });
+
+      if (!validation.valid) {
+        alert("Configuration Error:\n" + validation.errors.join("\n"));
+        return;
+      }
+
+      await api(`/api/v1/repos/${repo.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          is_owned: isOwned,
+          description: desc,
+          default_branch: defBranch,
+          base_branch: baseBranch,
+          branch_prefix: branchPrefix,
+          copilot_handle: agentHandle,
+          issue_labels: issueLabels,
+          copilot_prompt: prompt,
+        }),
+      });
+
+      const notice = document.getElementById('repoConfigSaveNotice');
+      if (notice) {
+        notice.classList.remove('hidden');
+        setTimeout(() => notice.classList.add('hidden'), 3500);
+      }
+      await loadAll();
+    };
+
+    window.dispatchWorkflowPreset = async (presetId) => {
+      state.selectedPipelineType = presetId;
+      window.switchTab('pipelines');
+      window.installSelectedPipeline();
     };
 
     window.applyAllHygiene = () => {
