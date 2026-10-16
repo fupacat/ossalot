@@ -771,3 +771,17 @@ acceptance:
   method: test
   expected_output: "issue_url=https://github.com/octocat/hello-world/issues/1 unowned=403"
 ```
+
+REQ-056 The repository SHALL include a dedicated GitHub Actions workflow at `.github/workflows/copilot-ci-failure-handler.yml` that listens for completed `workflow_run` events and comments `@copilot` on pull requests when CI workflows fail.
+
+```yaml
+source: ADR-035
+status: active
+acceptance:
+  kind: categorical
+  precondition: The repository workflow file `.github/workflows/copilot-ci-failure-handler.yml`.
+  action: Read the workflow trigger, job condition, and run command.
+  expected: The workflow is triggered by completed workflow_run events, gates execution to pull_request failures, and uses `gh pr comment` to post an `@copilot` remediation request.
+  method: test
+  expected_output: "trigger=workflow_run condition=failure_and_pull_request commenter=gh_pr_comment"
+```
