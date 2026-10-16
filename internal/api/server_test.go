@@ -14,7 +14,7 @@ import (
 	"github.com/eric/ossalot/internal/llm"
 )
 
-// TRACEABILITY_MAPPING: REQ-011
+// TRACEABILITY_MAPPING: REQ-011, REQ-055
 func TestAPIServerEndpoints(t *testing.T) {
 	store, err := db.OpenStore(filepath.Join(t.TempDir(), "api.db"))
 	if err != nil {
@@ -67,6 +67,15 @@ func TestAPIServerEndpoints(t *testing.T) {
 	})
 	ghMux.HandleFunc("POST /repos/octocat/hello-world/pulls", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"html_url":"https://github.com/octocat/hello-world/pull/10"}`))
+	})
+	failIssue := false
+	ghMux.HandleFunc("POST /repos/octocat/hello-world/issues", func(w http.ResponseWriter, r *http.Request) {
+		if failIssue {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"number":42,"url":"https://api.github.com/repos/octocat/hello-world/issues/42","html_url":"https://github.com/octocat/hello-world/issues/42"}`))
 	})
 
 	ghSrv := httptest.NewServer(ghMux)
@@ -166,6 +175,37 @@ func TestAPIServerEndpoints(t *testing.T) {
 	})
 	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/remediate", `{"check_key":"contributing_guide","create_pr":true}`); rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 on unowned PR creation, got %d", rec.Code)
+	}
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/issues", `{"title":"Add CI"}`); rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 on unowned issue creation, got %d", rec.Code)
+	}
+
+	// Restore repo-1 to owned
+	_, _ = store.UpsertRepository(db.Repository{
+		ID:       "repo-1",
+		Owner:    "octocat",
+		Name:     "hello-world",
+		FullName: "octocat/hello-world",
+		IsOwned:  true,
+	})
+
+	// Create Issue (missing repo, bad JSON, empty title, upstream error, success) - REQ-055
+	if rec := doReq(http.MethodPost, "/api/v1/repos/missing/issues", `{"title":"Add CI"}`); rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 on missing repo issue, got %d", rec.Code)
+	}
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/issues", "{bad"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on bad issue JSON, got %d", rec.Code)
+	}
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/issues", `{"title":""}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on empty issue title, got %d", rec.Code)
+	}
+	failIssue = true
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/issues", `{"title":"Add CI"}`); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on upstream issue error, got %d", rec.Code)
+	}
+	failIssue = false
+	if rec := doReq(http.MethodPost, "/api/v1/repos/repo-1/issues", `{"title":"Add SonarCloud","body":"@copilot please configure","labels":["ci"]}`); rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte("issues/42")) {
+		t.Fatalf("expected 200 on issue creation, got %d %s", rec.Code, rec.Body.String())
 	}
 
 	// 7. Sync Repos (error then success)

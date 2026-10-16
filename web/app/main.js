@@ -514,10 +514,57 @@
         document.getElementById('modalContent').textContent = draft.content || JSON.stringify(res, null, 2);
         document.getElementById('modalFooter').innerHTML = `
           <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200">Copy File</button>
-          ${repo.is_owned ? `<button id="createPRBtn" onclick="createRemediationPR('${checkKey}')" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium">1-Click Open GitHub PR</button>` : ''}
+          ${repo.is_owned ? `
+            <button id="dispatchIssueBtn" onclick="dispatchAgentIssue('${checkKey}', '${draft.file_path || checkKey}')" class="text-xs px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium">1-Click Dispatch Issue (@copilot)</button>
+            <button id="createPRBtn" onclick="createRemediationPR('${checkKey}')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium border border-slate-700">Direct PR</button>
+          ` : ''}
         `;
       } catch (err) {
         document.getElementById('modalSubtitle').innerHTML = `<span class="text-rose-400 font-semibold">&cross; ${err.message}</span>`;
+      }
+    };
+
+    window.dispatchAgentIssue = async (checkKey, filePath) => {
+      const repo = currentRepo();
+      const btn = document.getElementById('dispatchIssueBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Filing issue on GitHub for @copilot...';
+      }
+      const content = document.getElementById('modalContent').textContent;
+      const title = `[OSSAlot] Configure ${checkKey} (${filePath || 'Standards Remediation'})`;
+      const body = `## Summary\nOSSAlot standards audit identified an opportunity to improve repository health: **\`${checkKey}\`**.\n\n## Context\n- **Repository**: \`${repo.full_name}\`\n- **Primary Language**: \`${repo.primary_language || 'Software'}\`\n- **Target File / Path**: \`${filePath || checkKey}\`\n\n## Instructions for Repository Agent (@copilot)\n@copilot:\nPlease inspect this repository's codebase and existing workflows (in \`.github/workflows/\`), then implement the required changes by opening a pull request.\n\n**Important Guardrails**:\n1. Carefully inspect existing workflows and build files before proposing changes.\n2. Do **NOT** overwrite, truncate, or remove existing CI, test, build, or governance steps.\n3. Integrate the new configuration non-destructively.\n4. Ensure all unit tests and builds continue to pass.\n\n<details>\n<summary>Reference Specification / Recommended Content</summary>\n\n\`\`\`\n${content}\n\`\`\`\n</details>\n`;
+
+      try {
+        const res = await api(`/api/v1/repos/${repo.id}/issues`, {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            body,
+            labels: ['ossalot', 'remediation'],
+          }),
+        });
+        if (res.html_url) {
+          document.getElementById('modalSubtitle').innerHTML = `
+            <div class="mt-2 p-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-medium text-xs flex flex-wrap items-center justify-between gap-2">
+              <span>&check; GitHub Issue #${res.number} Filed for @copilot!</span>
+              <a href="${res.html_url}" target="_blank" rel="noopener" class="underline font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded-lg">View Issue on GitHub &nearr;</a>
+            </div>
+          `;
+          if (btn) {
+            btn.outerHTML = `<a href="${res.html_url}" target="_blank" rel="noopener" class="text-xs px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">Open Issue on GitHub &nearr;</a>`;
+          }
+        }
+      } catch (err) {
+        document.getElementById('modalSubtitle').innerHTML = `
+          <div class="mt-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium text-xs">
+            &cross; Error filing GitHub Issue: ${err.message || 'Check repository permissions'}
+          </div>
+        `;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Retry Dispatch Issue (@copilot)';
+        }
       }
     };
 
@@ -714,13 +761,65 @@
       const repo = currentRepo();
       if (!repo) return;
       const pipe = generatePipelineWorkflow(state.selectedPipelineType, repo.full_name);
-      document.getElementById('modalTitle').textContent = `Install Pipeline: ${pipe.filename}`;
-      document.getElementById('modalSubtitle').textContent = `Target: ${repo.full_name} • Branch: ossalot/pipeline-${pipe.id}`;
+      const pipeTemplate = PIPELINE_TEMPLATES[state.selectedPipelineType] || {};
+      const pipeName = pipeTemplate.name || state.selectedPipelineType;
+      document.getElementById('modalTitle').textContent = `Pipeline: ${pipeName}`;
+      document.getElementById('modalSubtitle').textContent = `Target: ${pipe.filename} • Repository: ${repo.full_name}`;
       document.getElementById('modalContent').textContent = pipe.content;
       document.getElementById('modalFooter').innerHTML = `
         <button onclick="navigator.clipboard.writeText(document.getElementById('modalContent').textContent)" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200">Copy YAML</button>
+        ${repo.is_owned ? `
+          <button id="dispatchPipelineIssueBtn" onclick="dispatchPipelineIssue()" class="text-xs px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">1-Click Dispatch Issue (@copilot)</button>
+        ` : ''}
       `;
       document.getElementById('modalOverlay').classList.remove('hidden');
+    };
+
+    window.dispatchPipelineIssue = async () => {
+      const repo = currentRepo();
+      if (!repo) return;
+      const pipe = generatePipelineWorkflow(state.selectedPipelineType, repo.full_name);
+      const pipeTemplate = PIPELINE_TEMPLATES[state.selectedPipelineType] || {};
+      const pipeName = pipeTemplate.name || state.selectedPipelineType;
+      const btn = document.getElementById('dispatchPipelineIssueBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Filing issue on GitHub for @copilot...';
+      }
+      const title = `[OSSAlot] Configure ${pipeName} (${pipe.filename})`;
+      const body = `## Summary\nOSSAlot recommends configuring the **${pipeName}** automation workflow on \`${repo.full_name}\`.\n\n## Context\n- **Repository**: \`${repo.full_name}\`\n- **Primary Language**: \`${repo.primary_language || 'Software'}\`\n- **Target Workflow File**: \`${pipe.filename}\`\n${pipe.required_secret ? `- **Required Repository Secret**: \`${pipe.required_secret}\`\n` : ''}\n## Instructions for Repository Agent (@copilot)\n@copilot:\nPlease inspect this repository's existing codebase, workflows in \`.github/workflows/\`, and build configuration, then implement this automation by opening a pull request.\n\n**Important Guardrails**:\n1. Inspect existing workflows before proposing changes.\n2. Do **NOT** overwrite, truncate, or remove existing CI, test, build, or governance steps.\n3. Integrate the new capability cleanly (e.g., as a dedicated workflow file \`${pipe.filename}\` or supplemental step).\n4. Ensure all existing build and verification workflows continue to pass.\n\n<details>\n<summary>Reference Specification / Recommended Workflow Configuration</summary>\n\n\`\`\`yaml\n${pipe.content}\n\`\`\`\n</details>\n`;
+
+      try {
+        const res = await api(`/api/v1/repos/${repo.id}/issues`, {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            body,
+            labels: ['ossalot', 'pipeline', 'automation'],
+          }),
+        });
+        if (res.html_url) {
+          document.getElementById('modalSubtitle').innerHTML = `
+            <div class="mt-2 p-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-medium text-xs flex flex-wrap items-center justify-between gap-2">
+              <span>&check; GitHub Issue #${res.number} Filed for @copilot!</span>
+              <a href="${res.html_url}" target="_blank" rel="noopener" class="underline font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded-lg">View Issue on GitHub &nearr;</a>
+            </div>
+          `;
+          if (btn) {
+            btn.outerHTML = `<a href="${res.html_url}" target="_blank" rel="noopener" class="text-xs px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">Open Issue on GitHub &nearr;</a>`;
+          }
+        }
+      } catch (err) {
+        document.getElementById('modalSubtitle').innerHTML = `
+          <div class="mt-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium text-xs">
+            &cross; Error filing GitHub Issue: ${err.message || 'Check repository permissions'}
+          </div>
+        `;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Retry Dispatch Issue (@copilot)';
+        }
+      }
     };
 
     window.applyAllHygiene = () => {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -45,6 +46,7 @@ func NewServer(store *db.Store, ghClient *github.Client, llmClient *llm.Client) 
 	s.mux.HandleFunc("DELETE /api/v1/repos/{id}", s.handleDeleteRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/{id}/audit", s.handleAuditRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/{id}/remediate", s.handleRemediateRepo)
+	s.mux.HandleFunc("POST /api/v1/repos/{id}/issues", s.handleCreateIssue)
 	return s
 }
 
@@ -245,4 +247,44 @@ func (s *Server) handleRemediateRepo(w http.ResponseWriter, r *http.Request) {
 		"draft":  draft,
 		"pr_url": prURL,
 	})
+}
+
+// TRACEABILITY_MAPPING: REQ-055
+func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.store.GetRepository(r.PathValue("id"))
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "repository not found"})
+		return
+	}
+	var req struct {
+		Title  string   `json:"title"`
+		Body   string   `json:"body"`
+		Labels []string `json:"labels,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request JSON"})
+		return
+	}
+	if req.Title == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "title is required"})
+		return
+	}
+	settings := s.store.GetSettingsRaw()
+	res, err := s.ghClient.CreateIssue(r.Context(), settings.GitHubToken, github.IssueRequest{
+		Owner:   repo.Owner,
+		Repo:    repo.Name,
+		IsOwned: repo.IsOwned,
+		Title:   req.Title,
+		Body:    req.Body,
+		Labels:  req.Labels,
+	})
+	if err != nil {
+		if errors.Is(err, github.ErrRepoNotOwned) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
