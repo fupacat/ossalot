@@ -786,3 +786,16 @@ acceptance:
   expected_output: "patch_status=200 handle_customized=true prompt_contains_directives=true invalid_rejected=true"
 ```
 
+REQ-058 Repository sync SHALL keep the stored ownership of repositories already in the workspace and mark newly discovered repositories as owned.
+
+```yaml
+source: ADR-035
+status: active
+acceptance:
+  kind: categorical
+  precondition: An initialized API server backed by a store holding a repository marked not owned, and a mock GitHub REST server listing that repository and one new repository.
+  action: Send POST /api/v1/repos/sync.
+  expected: Returns status 200; the stored repository is still not owned and the newly discovered repository is owned.
+  method: test
+  expected_output: "existing_owned=false new_owned=true"
+```
