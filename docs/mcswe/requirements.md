@@ -771,3 +771,18 @@ acceptance:
   method: test
   expected_output: "issue_url=https://github.com/octocat/hello-world/issues/1 unowned=403"
 ```
+
+REQ-056 The continuous integration workflow SHALL, on pushes to main only and after the test-and-build job succeeds, build the root Dockerfile and push it to ghcr.io/fupacat/ossalot tagged `main` and with the commit SHA, then run a deploy job in the `dev` environment on a self-hosted runner labelled `ossalot-dev` that runs `docker compose pull` and `docker compose up -d` for `deploy/dev/compose.yml` with that SHA's tag.
+
+```yaml
+source: ADR-035
+status: active
+acceptance:
+  kind: categorical
+  precondition: The repository's .github/workflows/ci.yml.
+  action: Read the workflow's jobs, their needs, conditions, runners, environment and steps.
+  expected: A publish job needs test-and-build, runs only for push events on refs/heads/main, has packages write permission and pushes ghcr.io/fupacat/ossalot with main and SHA tags; a deploy job needs the publish job, uses environment dev, runs on self-hosted and ossalot-dev, and runs docker compose pull then up -d on deploy/dev/compose.yml.
+  method: test
+  expected_output: "publish=main_push_only tags=main,sha deploy=dev,self-hosted,ossalot-dev order=test<publish<deploy"
+```
+

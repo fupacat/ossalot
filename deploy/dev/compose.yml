@@ -1,0 +1,22 @@
+# Dev environment on Docker Desktop (ADR-035). CI's deploy-dev job runs
+# `docker compose pull && docker compose up -d` here; see deploy/dev/README.md.
+name: ossalot-dev
+
+services:
+  ossalot:
+    image: ghcr.io/fupacat/ossalot:${OSSALOT_TAG:-main}
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ossalot-data:/data
+
+  cloudflared:
+    image: cloudflare/cloudflared:2024.12.2
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: .env
+    depends_on:
+      - ossalot
+
+volumes:
+  ossalot-data:
