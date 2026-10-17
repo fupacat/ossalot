@@ -349,3 +349,13 @@ decision: Implement an Issue Dispatcher in the GitHub client (CreateIssue) and A
 consequences: Maintainers can trigger standards remediation and pipeline automation safely without risk of destructive file overwrites. The resident coding agent performs context-aware analysis and opens a verified, non-destructive pull request.
 superseded_by: null
 ```
+
+## ADR-035 Dev environment on a Cloudflare Tunnel, pulled from CI
+
+```yaml
+status: resolved
+context: The owner wants a hosted dev instance on Cloudflare that follows the latest build. OSSAlot is a Go server keeping its data in files on disk, so it cannot run on Workers or Pages, and Cloudflare Containers have ephemeral disk. The app holds a GitHub token that can create issues and pull requests.
+decision: The dev instance runs on a host the owner controls, exposed through a Cloudflare Tunnel and gated by a Cloudflare Access policy for the owner's email. A systemd timer on the host downloads the ossalot-test-binary artifact of the latest successful push run of ci.yml on main, runs it with -check, and restarts the service when the commit changed. The tooling lives in scripts/deploy/, outside the manifest's scope; ci.yml is unchanged.
+consequences: No Cloudflare or host credentials in GitHub, and no inbound port on the host. Deploys lag main by up to five minutes. Data persists on the host across deploys. A host offline longer than the 7-day artifact retention waits for the next push to main.
+superseded_by: null
+```

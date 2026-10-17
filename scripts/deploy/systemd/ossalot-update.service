@@ -1,0 +1,8 @@
+[Unit]
+Description=Deploy the latest green OSSAlot build from main
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/ossalot/env
+ExecStart=/opt/ossalot/update.sh
