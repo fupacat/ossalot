@@ -1,21 +1,22 @@
-// TRACEABILITY_MAPPING: REQ-056
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   validateRepoConfig,
   normalizeRepoConfig,
   composeAgentPrompt,
-  checkCopilotWorkflows,
+  copilotWorkflowPresets,
 } from "./repo_config_model.mjs";
 
-test("validateRepoConfig handles invalid config types", () => {
+// TRACEABILITY_MAPPING: REQ-056
+test("[REQ-056] validateRepoConfig handles invalid config types", () => {
   assert.equal(validateRepoConfig(null).valid, false);
   assert.equal(validateRepoConfig(undefined).valid, false);
   assert.equal(validateRepoConfig("string").valid, false);
   assert.equal(validateRepoConfig(123).valid, false);
 });
 
-test("validateRepoConfig validates base_branch rules", () => {
+// TRACEABILITY_MAPPING: REQ-056
+test("[REQ-056] validateRepoConfig validates base_branch rules", () => {
   assert.equal(validateRepoConfig({ base_branch: "main" }).valid, true);
   assert.equal(validateRepoConfig({ base_branch: "" }).valid, true);
   assert.equal(validateRepoConfig({ base_branch: "main branch" }).valid, false);
@@ -24,7 +25,8 @@ test("validateRepoConfig validates base_branch rules", () => {
   assert.equal(validateRepoConfig({ base_branch: "main/" }).valid, false);
 });
 
-test("validateRepoConfig validates copilot_handle and branch_prefix", () => {
+// TRACEABILITY_MAPPING: REQ-056
+test("[REQ-056] validateRepoConfig validates copilot_handle and branch_prefix", () => {
   assert.equal(validateRepoConfig({ copilot_handle: "@copilot" }).valid, true);
   assert.equal(validateRepoConfig({ copilot_handle: "" }).valid, true);
   assert.equal(validateRepoConfig({ copilot_handle: "copilot" }).valid, false);
@@ -35,7 +37,8 @@ test("validateRepoConfig validates copilot_handle and branch_prefix", () => {
   assert.equal(validateRepoConfig({ branch_prefix: "copilot prefix" }).valid, false);
 });
 
-test("normalizeRepoConfig applies expected defaults", () => {
+// TRACEABILITY_MAPPING: REQ-056
+test("[REQ-056] normalizeRepoConfig applies expected defaults", () => {
   const def = normalizeRepoConfig(null);
   assert.equal(def.default_branch, "main");
   assert.equal(def.base_branch, "main");
@@ -65,7 +68,8 @@ test("normalizeRepoConfig applies expected defaults", () => {
   assert.equal(fallbackBase.base_branch, "master");
 });
 
-test("composeAgentPrompt produces structured prompts with defaults and overrides", () => {
+// TRACEABILITY_MAPPING: REQ-056
+test("[REQ-056] composeAgentPrompt produces structured prompts with defaults and overrides", () => {
   const minimalPrompt = composeAgentPrompt();
   assert.ok(minimalPrompt.includes("@copilot"));
   assert.ok(minimalPrompt.includes("Target Base Branch"));
@@ -100,15 +104,12 @@ test("composeAgentPrompt produces structured prompts with defaults and overrides
   assert.ok(namePrompt.includes("address this task for simple-repo."));
 });
 
-test("checkCopilotWorkflows detects presence of automated handlers", () => {
-  const empty = checkCopilotWorkflows();
-  assert.equal(empty.ci_failure_handler.installed, false);
-  assert.equal(empty.review_handler.installed, false);
-
-  const present = checkCopilotWorkflows({
-    ".github/workflows/copilot-ci-failure-handler.yml": true,
-    ".github/workflows/copilot-review-handler.yml": true,
-  });
-  assert.equal(present.ci_failure_handler.installed, true);
-  assert.equal(present.review_handler.installed, true);
+// TRACEABILITY_MAPPING: REQ-056
+test("[REQ-056] copilotWorkflowPresets lists the dispatchable handler workflows", () => {
+  const presets = copilotWorkflowPresets();
+  assert.deepEqual(Object.keys(presets), ["ci_failure_handler", "review_handler"]);
+  assert.equal(presets.ci_failure_handler.id, "copilot_ci_failure_handler");
+  assert.equal(presets.ci_failure_handler.filename, ".github/workflows/copilot-ci-failure-handler.yml");
+  assert.equal(presets.review_handler.id, "copilot_review_handler");
+  assert.equal(presets.review_handler.filename, ".github/workflows/copilot-review-handler.yml");
 });

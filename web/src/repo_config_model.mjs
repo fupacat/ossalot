@@ -92,23 +92,17 @@ export function composeAgentPrompt(repo, options) {
 }
 
 // TRACEABILITY_MAPPING: REQ-056
-export function checkCopilotWorkflows(filesPresent) {
-  const files = filesPresent || {};
-  const ciFailureHandler = Boolean(files[".github/workflows/copilot-ci-failure-handler.yml"]);
-  const reviewHandler = Boolean(files[".github/workflows/copilot-review-handler.yml"]);
-
+export function copilotWorkflowPresets() {
   return {
     ci_failure_handler: {
       id: "copilot_ci_failure_handler",
       name: "Auto-Summon Copilot on CI Failure",
       filename: ".github/workflows/copilot-ci-failure-handler.yml",
-      installed: ciFailureHandler,
     },
     review_handler: {
       id: "copilot_review_handler",
       name: "Auto-Summon Copilot on Changes Requested",
       filename: ".github/workflows/copilot-review-handler.yml",
-      installed: reviewHandler,
     },
   };
 }

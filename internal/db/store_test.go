@@ -252,10 +252,37 @@ func TestPatchRepository(t *testing.T) {
 		t.Fatalf("upsert failed to preserve config: %+v", reupserted)
 	}
 
+	// Re-upserting with values replaces the configured fields
+	replaced, err := store.UpsertRepository(Repository{
+		ID:            repo.ID,
+		FullName:      "fupacat/ossalot",
+		DefaultBranch: "trunk",
+		BaseBranch:    "develop",
+		BranchPrefix:  "agent/",
+		CopilotHandle: "@workspace",
+		CopilotPrompt: "Run make build",
+		IssueLabels:   "bot",
+	})
+	if err != nil {
+		t.Fatalf("replacing upsert failed: %v", err)
+	}
+	if replaced.DefaultBranch != "trunk" || replaced.BaseBranch != "develop" || replaced.BranchPrefix != "agent/" ||
+		replaced.CopilotHandle != "@workspace" || replaced.CopilotPrompt != "Run make build" || replaced.IssueLabels != "bot" {
+		t.Fatalf("upsert failed to replace config: %+v", replaced)
+	}
+
+	// An empty patch leaves every field as it was
+	unchanged, ok, err := store.PatchRepository(repo.ID, RepoPatch{})
+	if err != nil || !ok {
+		t.Fatalf("empty patch failed: ok=%v err=%v", ok, err)
+	}
+	if unchanged.IsOwned != replaced.IsOwned || unchanged.BaseBranch != "develop" || unchanged.Description != replaced.Description {
+		t.Fatalf("empty patch changed the repository: %+v", unchanged)
+	}
+
 	// Flush error path
 	store.path = filepath.Join(t.TempDir(), "missing-dir", "db.json")
 	if _, _, err := store.PatchRepository(repo.ID, RepoPatch{IsOwned: &isOwned}); err == nil {
 		t.Fatalf("expected flush error for invalid path")
 	}
 }
-

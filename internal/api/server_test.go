@@ -277,11 +277,10 @@ func TestPatchRepoEndpoint(t *testing.T) {
 		t.Fatalf("expected patched response to contain copilot_handle, got: %s", rec.Body.String())
 	}
 
-	// Make directory read-only to trigger store flush error -> 500
-	_ = os.Chmod(dbDir, 0500)
-	defer func() { _ = os.Chmod(dbDir, 0700) }()
-	// On Linux, make dbPath read-only too
-	_ = os.Chmod(dbPath, 0400)
+	// Remove the store's directory so the flush fails -> 500, whatever user runs the test
+	if err := os.RemoveAll(dbDir); err != nil {
+		t.Fatalf("remove store directory: %v", err)
+	}
 	req = httptest.NewRequest(http.MethodPatch, "/api/v1/repos/"+repo.ID, bytes.NewBufferString(`{"is_owned": false}`))
 	rec = httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
@@ -290,3 +289,36 @@ func TestPatchRepoEndpoint(t *testing.T) {
 	}
 }
 
+// TRACEABILITY_MAPPING: REQ-058
+func TestSyncKeepsStoredOwnership(t *testing.T) {
+	store, err := db.OpenStore(filepath.Join(t.TempDir(), "api_sync.db"))
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+	if _, err := store.UpsertRepository(db.Repository{Owner: "octocat", Name: "kept", FullName: "octocat/kept", IsOwned: false}); err != nil {
+		t.Fatalf("UpsertRepository failed: %v", err)
+	}
+
+	ghMux := http.NewServeMux()
+	ghMux.HandleFunc("GET /user/repos", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"name":"kept","full_name":"octocat/kept","owner":{"login":"octocat"}},{"name":"fresh","full_name":"octocat/fresh","owner":{"login":"octocat"}}]`))
+	})
+	ghSrv := httptest.NewServer(ghMux)
+	defer ghSrv.Close()
+
+	server := NewServer(store, github.NewClient(ghSrv.URL, ghSrv.URL, ghSrv.Client()), llm.NewClient("", nil))
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/repos/sync", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on sync, got %d %s", rec.Code, rec.Body.String())
+	}
+
+	owned := map[string]bool{}
+	for _, repo := range store.ListRepositories() {
+		owned[repo.FullName] = repo.IsOwned
+	}
+	if owned["octocat/kept"] || !owned["octocat/fresh"] {
+		t.Fatalf("sync must keep stored ownership and own new repositories, got %v", owned)
+	}
+	t.Logf("existing_owned=%v new_owned=%v", owned["octocat/kept"], owned["octocat/fresh"])
+}

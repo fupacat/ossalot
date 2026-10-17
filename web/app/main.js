@@ -6,7 +6,7 @@
     import { PIPELINE_TEMPLATES, generatePipelineWorkflow } from '/src/pipeline_model.mjs';
     import { generateHygieneConfigs } from '/src/hygiene_model.mjs';
     import { evaluateSonarOnboarding } from '/src/sonar_model.mjs';
-    import { validateRepoConfig, normalizeRepoConfig, composeAgentPrompt, checkCopilotWorkflows } from '/src/repo_config_model.mjs';
+    import { validateRepoConfig, normalizeRepoConfig, composeAgentPrompt, copilotWorkflowPresets } from '/src/repo_config_model.mjs';
 
     let state = {
       repos: [],
@@ -511,10 +511,7 @@
         const promptInput = document.getElementById('repoConfigPrompt');
         if (promptInput) promptInput.value = repo.copilot_prompt || '';
 
-        const workflows = checkCopilotWorkflows({
-          ".github/workflows/copilot-ci-failure-handler.yml": Boolean(repo.latest_audit && repo.latest_audit.checks && repo.latest_audit.checks.some(c => c.check_key === 'copilot_ci_failure_handler' && c.status === 'pass')),
-          ".github/workflows/copilot-review-handler.yml": Boolean(repo.latest_audit && repo.latest_audit.checks && repo.latest_audit.checks.some(c => c.check_key === 'copilot_review_handler' && c.status === 'pass')),
-        });
+        const workflows = copilotWorkflowPresets();
 
         const wfList = document.getElementById('copilotWorkflowsList');
         if (wfList) {

@@ -133,7 +133,7 @@ func (s *Server) handleAddRepo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, updated)
 }
 
-// TRACEABILITY_MAPPING: REQ-011
+// TRACEABILITY_MAPPING: REQ-011, REQ-058
 func (s *Server) handleSyncRepos(w http.ResponseWriter, r *http.Request) {
 	settings := s.store.GetSettingsRaw()
 	discovered, err := s.ghClient.ListAuthenticatedRepos(r.Context(), settings.GitHubToken)
@@ -141,8 +141,14 @@ func (s *Server) handleSyncRepos(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
+	// Ownership configured on a stored repository survives the sync
+	owned := map[string]bool{}
+	for _, repo := range s.store.ListRepositories() {
+		owned[repo.FullName] = repo.IsOwned
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	for _, item := range discovered {
+		isOwned, known := owned[item.FullName]
 		_, _ = s.store.UpsertRepository(db.Repository{
 			Owner:           item.Owner,
 			Name:            item.Name,
@@ -151,7 +157,7 @@ func (s *Server) handleSyncRepos(w http.ResponseWriter, r *http.Request) {
 			Description:     item.Description,
 			PrimaryLanguage: item.PrimaryLanguage,
 			Topics:          item.Topics,
-			IsOwned:         true,
+			IsOwned:         isOwned || !known,
 			LastSyncedAt:    now,
 		})
 	}
@@ -308,4 +314,3 @@ func (s *Server) handlePatchRepo(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, updated)
 }
-
