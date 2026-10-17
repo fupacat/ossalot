@@ -341,7 +341,7 @@ data_schema: null
 ```yaml
 component: cli
 definition: .github/workflows/ci.yml
-requirements: [REQ-032, REQ-054, REQ-056]
+requirements: [REQ-032, REQ-054, REQ-057]
 checker: python3 scripts/run_evidence.py test
 data_schema: null
 ```

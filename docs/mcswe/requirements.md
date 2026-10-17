@@ -772,10 +772,10 @@ acceptance:
   expected_output: "issue_url=https://github.com/octocat/hello-world/issues/1 unowned=403"
 ```
 
-REQ-056 The continuous integration workflow SHALL, on pushes to main only and after the test-and-build job succeeds, build the root Dockerfile and push it to ghcr.io/fupacat/ossalot tagged `main` and with the commit SHA, then run a deploy job in the `dev` environment on a self-hosted runner labelled `ossalot-dev` that runs `docker compose pull` and `docker compose up -d` for `deploy/dev/compose.yml` with that SHA's tag.
+REQ-057 The continuous integration workflow SHALL, on pushes to main only and after the test-and-build job succeeds, build the root Dockerfile and push it to ghcr.io/fupacat/ossalot tagged `main` and with the commit SHA, then run a deploy job in the `dev` environment on a self-hosted runner labelled `ossalot-dev` that runs `docker compose pull` and `docker compose up -d` for `deploy/dev/compose.yml` with that SHA's tag.
 
 ```yaml
-source: ADR-035
+source: ADR-036
 status: active
 acceptance:
   kind: categorical

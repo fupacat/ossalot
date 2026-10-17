@@ -4,3 +4,6 @@ dist
 web/node_modules
 web/dist
 *.db
+ossalot
+ossalot.db.*
+deploy/**/.env

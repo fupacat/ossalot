@@ -1,4 +1,4 @@
-# Dev environment on Docker Desktop (ADR-035). CI's deploy-dev job runs
+# Dev environment on Docker Desktop (ADR-036). CI's deploy-dev job runs
 # `docker compose pull && docker compose up -d` here; see deploy/dev/README.md.
 name: ossalot-dev
 
