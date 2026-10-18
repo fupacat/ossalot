@@ -360,3 +360,12 @@ consequences: Maintainers can customize branch targets and agent prompt guardrai
 superseded_by: null
 ```
 
+## ADR-036 Continuous deployment of a dev environment to Docker Desktop behind a Cloudflare Tunnel
+
+```yaml
+status: resolved
+context: The owner wants a hosted dev instance on Cloudflare that follows every green build of main, running on the owner's machine under Docker Desktop. OSSAlot is a Go server keeping its data in files on disk, so it cannot run on Workers or Pages. CI already runs on GitHub-hosted runners. The app holds a GitHub token that can create issues and pull requests.
+decision: A root Dockerfile builds the UI and the binary into a distroless image. On pushes to main, after test-and-build passes, a publish-image job on a GitHub-hosted runner pushes the image to ghcr.io/fupacat/ossalot tagged main and the commit SHA. A deploy-dev job in the dev GitHub environment then runs on a self-hosted runner labelled ossalot-dev on the owner's machine and runs docker compose pull and up for deploy/dev/compose.yml, which pairs the app with a cloudflared container on a dashboard-managed tunnel. The tunnel hostname is gated by a Cloudflare Access policy for the owner's email. Secrets live in the dev environment. Pull requests never run publish-image or deploy-dev.
+consequences: Build, test and deploy are one GitHub workflow with a deployment record per commit. The host needs no inbound port; the runner and cloudflared connect out. Data persists in a Docker volume across deploys. Deploys stop while the owner's machine or the runner is off and resume on the next push or a re-run. A self-hosted runner on a public repository is limited to the dev environment and the main branch, and fork pull request workflows require approval.
+superseded_by: null
+```
