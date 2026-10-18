@@ -28,7 +28,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-// TRACEABILITY_MAPPING: REQ-011
+// TRACEABILITY_MAPPING: REQ-011, REQ-055, REQ-056
 func NewServer(store *db.Store, ghClient *github.Client, llmClient *llm.Client) *Server {
 	s := &Server{
 		store:    store,
@@ -43,6 +43,7 @@ func NewServer(store *db.Store, ghClient *github.Client, llmClient *llm.Client) 
 	s.mux.HandleFunc("POST /api/v1/repos", s.handleAddRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/sync", s.handleSyncRepos)
 	s.mux.HandleFunc("GET /api/v1/repos/{id}", s.handleGetRepo)
+	s.mux.HandleFunc("PATCH /api/v1/repos/{id}", s.handlePatchRepo)
 	s.mux.HandleFunc("DELETE /api/v1/repos/{id}", s.handleDeleteRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/{id}/audit", s.handleAuditRepo)
 	s.mux.HandleFunc("POST /api/v1/repos/{id}/remediate", s.handleRemediateRepo)
@@ -132,7 +133,7 @@ func (s *Server) handleAddRepo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, updated)
 }
 
-// TRACEABILITY_MAPPING: REQ-011
+// TRACEABILITY_MAPPING: REQ-011, REQ-058
 func (s *Server) handleSyncRepos(w http.ResponseWriter, r *http.Request) {
 	settings := s.store.GetSettingsRaw()
 	discovered, err := s.ghClient.ListAuthenticatedRepos(r.Context(), settings.GitHubToken)
@@ -140,8 +141,14 @@ func (s *Server) handleSyncRepos(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
+	// Ownership configured on a stored repository survives the sync
+	owned := map[string]bool{}
+	for _, repo := range s.store.ListRepositories() {
+		owned[repo.FullName] = repo.IsOwned
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	for _, item := range discovered {
+		isOwned, known := owned[item.FullName]
 		_, _ = s.store.UpsertRepository(db.Repository{
 			Owner:           item.Owner,
 			Name:            item.Name,
@@ -150,7 +157,7 @@ func (s *Server) handleSyncRepos(w http.ResponseWriter, r *http.Request) {
 			Description:     item.Description,
 			PrimaryLanguage: item.PrimaryLanguage,
 			Topics:          item.Topics,
-			IsOwned:         true,
+			IsOwned:         isOwned || !known,
 			LastSyncedAt:    now,
 		})
 	}
@@ -287,4 +294,23 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// TRACEABILITY_MAPPING: REQ-056
+func (s *Server) handlePatchRepo(w http.ResponseWriter, r *http.Request) {
+	var patch db.RepoPatch
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request JSON"})
+		return
+	}
+	updated, ok, err := s.store.PatchRepository(r.PathValue("id"), patch)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "repository not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }

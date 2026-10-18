@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -225,4 +226,99 @@ func TestAPIServerEndpoints(t *testing.T) {
 	if rec := doReq(http.MethodDelete, "/api/v1/repos/repo-1", ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 on second delete")
 	}
+}
+
+// TRACEABILITY_MAPPING: REQ-056
+func TestPatchRepoEndpoint(t *testing.T) {
+	dbDir := t.TempDir()
+	dbPath := filepath.Join(dbDir, "api_patch.db")
+	store, err := db.OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	repo, err := store.UpsertRepository(db.Repository{
+		Owner:    "fupacat",
+		Name:     "ossalot",
+		FullName: "fupacat/ossalot",
+		IsOwned:  false,
+	})
+	if err != nil {
+		t.Fatalf("UpsertRepository failed: %v", err)
+	}
+
+	server := NewServer(store, github.NewClient("", "", nil), llm.NewClient("", nil))
+
+	// Bad JSON body -> 400
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/repos/"+repo.ID, bytes.NewBufferString("{bad-json"))
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad JSON, got %d", rec.Code)
+	}
+
+	// Missing repo -> 404
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/repos/missing-id", bytes.NewBufferString(`{"is_owned": true}`))
+	rec = httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing repo, got %d", rec.Code)
+	}
+
+	// Valid patch -> 200
+	payload := `{"is_owned": true, "default_branch": "main", "base_branch": "main", "branch_prefix": "copilot/", "copilot_handle": "@copilot", "copilot_prompt": "Run tests", "issue_labels": "copilot", "description": "Updated"}`
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/repos/"+repo.ID, bytes.NewBufferString(payload))
+	rec = httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for valid patch, got %d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"copilot_handle":"@copilot"`)) {
+		t.Fatalf("expected patched response to contain copilot_handle, got: %s", rec.Body.String())
+	}
+
+	// Remove the store's directory so the flush fails -> 500, whatever user runs the test
+	if err := os.RemoveAll(dbDir); err != nil {
+		t.Fatalf("remove store directory: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/repos/"+repo.ID, bytes.NewBufferString(`{"is_owned": false}`))
+	rec = httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on store flush error, got %d", rec.Code)
+	}
+}
+
+// TRACEABILITY_MAPPING: REQ-058
+func TestSyncKeepsStoredOwnership(t *testing.T) {
+	store, err := db.OpenStore(filepath.Join(t.TempDir(), "api_sync.db"))
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+	if _, err := store.UpsertRepository(db.Repository{Owner: "octocat", Name: "kept", FullName: "octocat/kept", IsOwned: false}); err != nil {
+		t.Fatalf("UpsertRepository failed: %v", err)
+	}
+
+	ghMux := http.NewServeMux()
+	ghMux.HandleFunc("GET /user/repos", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"name":"kept","full_name":"octocat/kept","owner":{"login":"octocat"}},{"name":"fresh","full_name":"octocat/fresh","owner":{"login":"octocat"}}]`))
+	})
+	ghSrv := httptest.NewServer(ghMux)
+	defer ghSrv.Close()
+
+	server := NewServer(store, github.NewClient(ghSrv.URL, ghSrv.URL, ghSrv.Client()), llm.NewClient("", nil))
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/repos/sync", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on sync, got %d %s", rec.Code, rec.Body.String())
+	}
+
+	owned := map[string]bool{}
+	for _, repo := range store.ListRepositories() {
+		owned[repo.FullName] = repo.IsOwned
+	}
+	if owned["octocat/kept"] || !owned["octocat/fresh"] {
+		t.Fatalf("sync must keep stored ownership and own new repositories, got %v", owned)
+	}
+	t.Logf("existing_owned=%v new_owned=%v", owned["octocat/kept"], owned["octocat/fresh"])
 }

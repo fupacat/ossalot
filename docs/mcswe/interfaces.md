@@ -131,7 +131,7 @@ data_schema: internal/engine/standards/auditor.go#RemediationDraft
 ```yaml
 component: api
 definition: internal/api/server.go#NewServer
-requirements: [REQ-011, REQ-055]
+requirements: [REQ-011, REQ-055, REQ-056, REQ-058]
 checker: go vet ./internal/api
 data_schema: null
 ```
@@ -515,3 +515,24 @@ requirements: [REQ-055]
 checker: go vet ./internal/github
 data_schema: internal/github/client.go#IssueRequest
 ```
+
+## IF-050 Repository configuration API
+
+```yaml
+component: api
+definition: internal/api/server.go#Server.handlePatchRepo
+requirements: [REQ-056]
+checker: go vet ./internal/api
+data_schema: internal/db/store.go#Repository
+```
+
+## IF-051 Repository and Copilot configuration model
+
+```yaml
+component: web
+definition: web/src/repo_config_model.mjs#composeAgentPrompt
+requirements: [REQ-056]
+checker: node --check web/src/repo_config_model.mjs
+data_schema: null
+```
+

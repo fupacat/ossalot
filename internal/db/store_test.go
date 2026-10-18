@@ -185,3 +185,104 @@ func TestRepositoryAndAuditLifecycle(t *testing.T) {
 		t.Fatalf("expected 0 repos after delete")
 	}
 }
+
+// TRACEABILITY_MAPPING: REQ-056
+func TestPatchRepository(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "patch.db")
+	store, err := OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("OpenStore failed: %v", err)
+	}
+
+	repo, err := store.UpsertRepository(Repository{
+		Owner:    "fupacat",
+		Name:     "ossalot",
+		FullName: "fupacat/ossalot",
+		IsOwned:  false,
+	})
+	if err != nil {
+		t.Fatalf("UpsertRepository failed: %v", err)
+	}
+
+	// Patching non-existent repo
+	if _, ok, err := store.PatchRepository("missing-id", RepoPatch{}); err != nil || ok {
+		t.Fatalf("expected ok=false for missing repo, got ok=%v err=%v", ok, err)
+	}
+
+	isOwned := true
+	defBranch := "main"
+	baseBranch := "main"
+	prefix := "copilot/"
+	handle := "@copilot"
+	prompt := "Run 'go test ./...' before opening PR"
+	labels := "copilot, agent"
+	desc := "OSS maintenance cockpit"
+
+	patched, ok, err := store.PatchRepository(repo.ID, RepoPatch{
+		IsOwned:       &isOwned,
+		DefaultBranch: &defBranch,
+		BaseBranch:    &baseBranch,
+		BranchPrefix:  &prefix,
+		CopilotHandle: &handle,
+		CopilotPrompt: &prompt,
+		IssueLabels:   &labels,
+		Description:   &desc,
+	})
+	if err != nil || !ok {
+		t.Fatalf("PatchRepository failed: ok=%v err=%v", ok, err)
+	}
+
+	if !patched.IsOwned || patched.DefaultBranch != "main" || patched.BaseBranch != "main" ||
+		patched.BranchPrefix != "copilot/" || patched.CopilotHandle != "@copilot" ||
+		patched.CopilotPrompt != prompt || patched.IssueLabels != labels || patched.Description != desc {
+		t.Fatalf("unexpected patched repo: %+v", patched)
+	}
+
+	// Re-upserting preserves configured fields
+	reupserted, err := store.UpsertRepository(Repository{
+		ID:       repo.ID,
+		FullName: "fupacat/ossalot",
+		Owner:    "fupacat",
+		Name:     "ossalot",
+	})
+	if err != nil {
+		t.Fatalf("re-upsert failed: %v", err)
+	}
+	if reupserted.DefaultBranch != "main" || reupserted.BaseBranch != "main" || reupserted.CopilotHandle != "@copilot" {
+		t.Fatalf("upsert failed to preserve config: %+v", reupserted)
+	}
+
+	// Re-upserting with values replaces the configured fields
+	replaced, err := store.UpsertRepository(Repository{
+		ID:            repo.ID,
+		FullName:      "fupacat/ossalot",
+		DefaultBranch: "trunk",
+		BaseBranch:    "develop",
+		BranchPrefix:  "agent/",
+		CopilotHandle: "@workspace",
+		CopilotPrompt: "Run make build",
+		IssueLabels:   "bot",
+	})
+	if err != nil {
+		t.Fatalf("replacing upsert failed: %v", err)
+	}
+	if replaced.DefaultBranch != "trunk" || replaced.BaseBranch != "develop" || replaced.BranchPrefix != "agent/" ||
+		replaced.CopilotHandle != "@workspace" || replaced.CopilotPrompt != "Run make build" || replaced.IssueLabels != "bot" {
+		t.Fatalf("upsert failed to replace config: %+v", replaced)
+	}
+
+	// An empty patch leaves every field as it was
+	unchanged, ok, err := store.PatchRepository(repo.ID, RepoPatch{})
+	if err != nil || !ok {
+		t.Fatalf("empty patch failed: ok=%v err=%v", ok, err)
+	}
+	if unchanged.IsOwned != replaced.IsOwned || unchanged.BaseBranch != "develop" || unchanged.Description != replaced.Description {
+		t.Fatalf("empty patch changed the repository: %+v", unchanged)
+	}
+
+	// Flush error path
+	store.path = filepath.Join(t.TempDir(), "missing-dir", "db.json")
+	if _, _, err := store.PatchRepository(repo.ID, RepoPatch{IsOwned: &isOwned}); err == nil {
+		t.Fatalf("expected flush error for invalid path")
+	}
+}
