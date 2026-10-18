@@ -6,6 +6,7 @@ import {
   composeAgentPrompt,
   copilotWorkflowPresets,
 } from "./repo_config_model.mjs";
+import { PIPELINE_TEMPLATES } from "./pipeline_model.mjs";
 
 // TRACEABILITY_MAPPING: REQ-056
 test("[REQ-056] validateRepoConfig handles invalid config types", () => {
@@ -112,4 +113,8 @@ test("[REQ-056] copilotWorkflowPresets lists the dispatchable handler workflows"
   assert.equal(presets.ci_failure_handler.filename, ".github/workflows/copilot-ci-failure-handler.yml");
   assert.equal(presets.review_handler.id, "copilot_review_handler");
   assert.equal(presets.review_handler.filename, ".github/workflows/copilot-review-handler.yml");
+  for (const wf of Object.values(presets)) {
+    assert.equal(wf.name, PIPELINE_TEMPLATES[wf.id].name);
+    assert.equal(wf.filename, PIPELINE_TEMPLATES[wf.id].filename);
+  }
 });

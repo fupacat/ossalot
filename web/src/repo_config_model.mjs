@@ -1,3 +1,5 @@
+import { PIPELINE_TEMPLATES } from "./pipeline_model.mjs";
+
 // TRACEABILITY_MAPPING: REQ-056
 export function validateRepoConfig(config) {
   const errors = [];
@@ -93,16 +95,10 @@ export function composeAgentPrompt(repo, options) {
 
 // TRACEABILITY_MAPPING: REQ-056
 export function copilotWorkflowPresets() {
+  // PIPELINE_TEMPLATES stays the single source of each workflow's id, name and filename
+  const preset = ({ id, name, filename }) => ({ id, name, filename });
   return {
-    ci_failure_handler: {
-      id: "copilot_ci_failure_handler",
-      name: "Auto-Summon Copilot on CI Failure",
-      filename: ".github/workflows/copilot-ci-failure-handler.yml",
-    },
-    review_handler: {
-      id: "copilot_review_handler",
-      name: "Auto-Summon Copilot on Changes Requested",
-      filename: ".github/workflows/copilot-review-handler.yml",
-    },
+    ci_failure_handler: preset(PIPELINE_TEMPLATES.copilot_ci_failure_handler),
+    review_handler: preset(PIPELINE_TEMPLATES.copilot_review_handler),
   };
 }
