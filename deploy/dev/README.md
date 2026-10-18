@@ -15,6 +15,7 @@ CI and the image build run in GitHub. Only the last step runs on your machine, t
 2. **Cloudflare Access.** Zero Trust → Access → Applications → Add → Self-hosted for `ossalot.fupacat.dev`, policy Allow, include Emails = your address. Do this before anything else is reachable: the app holds a GitHub token that can open issues and pull requests.
 3. **GitHub environment.** Repo → Settings → Environments → New `dev`. Add secrets `OSSALOT_GITHUB_TOKEN` (the token the app uses) and `TUNNEL_TOKEN` (from step 1). Set Deployment branches to `main` only.
 4. **Self-hosted runner.** Repo → Settings → Actions → Runners → New self-hosted runner, follow the steps for your OS on the machine running Docker Desktop, and add the label `ossalot-dev`. Run it as a service so it survives reboots.
+   The image is pushed to `ghcr.io/fupacat/ossalot`. If the package is private (check Your profile → Packages → `ossalot` after the first push), the deploy job has to run `docker login ghcr.io` before `docker compose pull`. Alternatively, set the package to public in its settings.
 5. **Public repo guard.** The repo is public. Settings → Actions → General → set fork pull request workflows to "Require approval for all external contributors". The deploy job only runs on pushes to `main` in the `dev` environment, so pull requests never reach the runner.
 
 Push to `main` (or re-run the CI workflow) and the stack comes up.

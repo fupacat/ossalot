@@ -1,5 +1,5 @@
 # OSSAlot image (ADR-036): the UI build embedded in the Go binary, on a distroless base.
-FROM node:20-alpine AS web
+FROM node:22-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci

@@ -6,15 +6,18 @@ services:
   ossalot:
     image: ghcr.io/fupacat/ossalot:${OSSALOT_TAG:-main}
     restart: unless-stopped
-    env_file: .env
+    # Each service gets only its own secret; compose reads both from .env
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN:?set GITHUB_TOKEN in .env}
     volumes:
       - ossalot-data:/data
 
   cloudflared:
-    image: cloudflare/cloudflared:2024.12.2
+    image: cloudflare/cloudflared:2026.9.3
     restart: unless-stopped
     command: tunnel --no-autoupdate run
-    env_file: .env
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
     depends_on:
       - ossalot
 
