@@ -29,7 +29,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -73,3 +73,99 @@ jobs:
             reports/junit.xml
             reports/lcov.info
           retention-days: 14
+
+  # TRACEABILITY_MAPPING: REQ-057
+  publish-image:
+    name: Publish ghcr.io/fupacat/ossalot
+    needs: test-and-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/fupacat/ossalot:main
+            ghcr.io/fupacat/ossalot:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # TRACEABILITY_MAPPING: REQ-057
+  deploy-dev:
+    name: Deploy the dev environment
+    needs: publish-image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, ossalot-dev]
+    environment:
+      name: dev
+      url: https://ossalot.fupacat.dev
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: deploy/dev
+    env:
+      OSSALOT_TAG: ${{ github.sha }}
+
+    steps:
+      - name: Check out the compose stack
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: deploy/dev
+
+      # A per-job Docker config keeps the registry login off the host; the runner empties RUNNER_TEMP after each job
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/docker" && echo '{}' > "$RUNNER_TEMP/docker/config.json"
+          echo "$GHCR_TOKEN" | DOCKER_CONFIG="$RUNNER_TEMP/docker" docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull and start the stack
+        env:
+          GITHUB_TOKEN: ${{ secrets.OSSALOT_GITHUB_TOKEN }}
+          TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
+        run: |
+          docker compose pull
+          docker compose up -d --remove-orphans
+
+      - name: Check the app and the tunnel are up
+        run: |
+          probe() { docker run --rm --network ossalot-dev_default busybox:1.36 wget -qO- "$1" >/dev/null 2>&1; }
+          for _ in $(seq 1 30); do
+            if probe http://ossalot:8080/api/v1/health && probe http://cloudflared:2000/ready; then
+              docker ps --filter label=com.docker.compose.project=ossalot-dev --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 50 ossalot-dev-ossalot-1
+          docker logs --tail 50 ossalot-dev-cloudflared-1
+          exit 1
