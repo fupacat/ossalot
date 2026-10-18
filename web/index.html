@@ -40,6 +40,7 @@
       <button onclick="switchTab('inbox')" data-tab="inbox" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Action Inbox</button>
       <button onclick="switchTab('setup')" data-tab="setup" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Setup &amp; Permissions</button>
       <button onclick="switchTab('pipelines')" data-tab="pipelines" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">CI &amp; Automation</button>
+      <button onclick="switchTab('repo-config')" data-tab="repo-config" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Repo &amp; Copilot</button>
       <button onclick="switchTab('hygiene')" data-tab="hygiene" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Code Hygiene (Girdle)</button>
       <button onclick="switchTab('settings')" data-tab="settings" class="tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-300 hover:bg-slate-800">Settings</button>
     </nav>
@@ -277,6 +278,132 @@
           </div>
           <pre id="pipelinePreviewCode" class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-emerald-300 overflow-x-auto font-mono max-h-80 whitespace-pre"></pre>
         </div>
+      </div>
+    </section>
+
+    <!-- TAB: Repository, Branch & Copilot Configuration (ADR-035, REQ-056) -->
+    <section id="tab-repo-config" class="hidden space-y-4">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div>
+            <h2 class="text-base sm:text-lg font-semibold text-white">Repository, Branch &amp; Copilot Configuration</h2>
+            <p class="text-xs text-slate-400">Configure target branch targets, resident agent mention handles, non-destructive prompt directives, and automated Copilot workflows.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="repoConfigOwnedBadge" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
+            <span id="repoConfigBranchBadge" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 font-mono"></span>
+          </div>
+        </div>
+
+        <form id="repoConfigForm" onsubmit="saveRepoConfig(event)" class="space-y-4 text-xs">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Col 1: Repository Ownership & Identity -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="font-semibold text-white text-sm">Repository Identity</h3>
+                <a id="repoConfigGhLink" href="#" target="_blank" rel="noopener" class="text-indigo-400 hover:underline">GitHub &nearr;</a>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Target Repository</label>
+                <select id="repoConfigRepoSelect" onchange="onRepoConfigChange(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200"></select>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Description</label>
+                <input id="repoConfigDesc" type="text" placeholder="Repository description" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200" />
+              </div>
+              <div class="pt-2 border-t border-slate-800/80">
+                <label class="flex items-start gap-2 text-slate-300 cursor-pointer">
+                  <input id="repoConfigIsOwned" type="checkbox" class="rounded border-slate-700 mt-0.5" />
+                  <div>
+                    <span class="font-medium text-white">Owned Repository</span>
+                    <p class="text-[11px] text-slate-400">Enables automated issue dispatching, pull requests, and commit authoring.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Col 2: Branch & PR Target Configuration -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+              <h3 class="font-semibold text-white text-sm">Branch &amp; PR Targets</h3>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-400 mb-1">Default Branch</label>
+                  <input id="repoConfigDefBranch" type="text" placeholder="main" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono" />
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-1">Target Base Branch</label>
+                  <input id="repoConfigBaseBranch" type="text" oninput="updateRepoPromptPreview()" placeholder="main" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Working Branch Prefix</label>
+                <input id="repoConfigBranchPrefix" type="text" oninput="updateRepoPromptPreview()" placeholder="copilot/" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono" />
+                <p class="text-[11px] text-slate-400 mt-1">E.g. <code class="text-indigo-300">copilot/</code>, <code class="text-indigo-300">feat/</code>, or <code class="text-indigo-300">remediate/</code>.</p>
+              </div>
+              <div class="pt-2 border-t border-slate-800/80 space-y-1.5">
+                <span class="block text-slate-400 font-medium">Recommended Protections</span>
+                <label class="flex items-center gap-2 text-slate-300 text-[11px]">
+                  <input type="checkbox" checked disabled class="rounded border-slate-700 text-indigo-500" />
+                  <span>Require PR review before merge</span>
+                </label>
+                <label class="flex items-center gap-2 text-slate-300 text-[11px]">
+                  <input type="checkbox" checked disabled class="rounded border-slate-700 text-indigo-500" />
+                  <span>Require test status checks to pass</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Col 3: Copilot & Agent Configuration -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+              <h3 class="font-semibold text-white text-sm">Copilot &amp; Agent Configuration</h3>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-400 mb-1">Agent Mention Tag</label>
+                  <input id="repoConfigAgentHandle" type="text" oninput="updateRepoPromptPreview()" placeholder="@copilot" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono" />
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-1">Issue Labels</label>
+                  <input id="repoConfigIssueLabels" type="text" placeholder="copilot, remediation" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Custom Prompt Directives &amp; Guardrails</label>
+                <textarea id="repoConfigPrompt" rows="3" oninput="updateRepoPromptPreview()" placeholder="E.g. Do not overwrite existing workflows in .github/workflows/. Run test suites before PR." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 resize-none font-mono text-[11px]"></textarea>
+                <div class="flex gap-1.5 flex-wrap mt-1">
+                  <span class="text-[10px] text-slate-500">Quick inserts:</span>
+                  <button type="button" onclick="appendPromptDirective('Never overwrite existing CI or build steps.')" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-800">+ Non-destructive CI</button>
+                  <button type="button" onclick="appendPromptDirective('Run project tests before opening PR.')" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-800">+ Test suite rule</button>
+                  <button type="button" onclick="appendPromptDirective('Preserve existing linter and formatting conventions.')" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-800">+ Linter rule</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Copilot Automation Workflows Helper -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div>
+                <h3 class="font-semibold text-white text-sm">Automated Copilot Workflows on Repository</h3>
+                <p class="text-[11px] text-slate-400">Summons Copilot autonomously when CI breaks or reviewers request changes on pull requests.</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="copilotWorkflowsList"></div>
+          </div>
+
+          <!-- Live Generated Prompt Preview -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">Live Agent Dispatch Prompt Preview</span>
+              <span class="text-[11px] text-slate-500 font-mono">Simulated Issue Body</span>
+            </div>
+            <pre id="repoConfigPromptPreview" class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-indigo-300 font-mono max-h-48 overflow-y-auto whitespace-pre-wrap"></pre>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+            <span id="repoConfigSaveNotice" class="text-xs text-emerald-400 font-medium hidden">&check; Repository configuration saved successfully!</span>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg text-xs transition">Save Repository Configuration</button>
+          </div>
+        </form>
       </div>
     </section>
 

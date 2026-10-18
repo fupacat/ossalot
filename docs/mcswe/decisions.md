@@ -350,6 +350,16 @@ consequences: Maintainers can trigger standards remediation and pipeline automat
 superseded_by: null
 ```
 
+## ADR-035 Repository, branch, and Copilot configuration management
+
+```yaml
+status: resolved
+context: Repositories in a portfolio differ in their default branches (e.g. main vs master vs develop), target remediation branch prefixes (e.g. copilot/ vs remediate/), resident agent handles (e.g. @copilot vs custom workspace handles), custom prompt directives (such as specific build commands or testing expectations), and branch protection constraints. Users need a dedicated tab in the web interface to view, configure, and persist these settings per repository and test prompt generation before issue dispatching.
+decision: Add repository configuration fields (DefaultBranch, BaseBranch, BranchPrefix, CopilotHandle, CopilotPrompt, IssueLabels) to the repository record in the datastore, expose a PATCH endpoint (PATCH /api/v1/repos/{id}) on the API server to update repository settings, define a pure JS repository configuration model in web/src/repo_config_model.mjs to validate settings and compose prompt directives, and surface a dedicated "Repo & Copilot Config" tab in the web interface.
+consequences: Maintainers can customize branch targets and agent prompt guardrails for each repository in their workspace. Dispatched remediation and pipeline issues respect repository-specific branch and agent settings. Ownership set in the tab survives later repository syncs, which mark only newly discovered repositories as owned.
+superseded_by: null
+```
+
 ## ADR-036 Continuous deployment of a dev environment to Docker Desktop behind a Cloudflare Tunnel
 
 ```yaml
